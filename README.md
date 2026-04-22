@@ -102,11 +102,22 @@ Use these Cloudflare Pages settings:
 Build command: npm run build
 Build output directory: dist
 Root directory: /
+Deploy command: leave empty
 ```
 
 No server routes, database, object storage, KV namespace, or Worker binding is required for the current app.
 
 The generated `dist` folder is static assets only. The Excel processing code is bundled into a browser Web Worker.
+
+Do not set the deploy command to `npx wrangler deploy` for the Pages Git integration. Cloudflare Pages already deploys the `dist` directory after the build command succeeds; running `wrangler deploy` starts a separate Workers deploy flow, installs Wrangler during the build, and runs the production build a second time.
+
+For a manual Pages direct upload from a local machine or external CI, run:
+
+```sh
+npm run deploy:pages
+```
+
+That command builds the app and uploads `dist` with `wrangler pages deploy`.
 
 ## User Workflow
 
