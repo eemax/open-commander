@@ -12,9 +12,9 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { runUrlGeneratorInWorker } from "./runInWorker";
+import { createUrlGeneratorWorkerRun, type WorkerRun } from "./runInWorker";
 import { downloadArrayBuffer } from "../lib/download";
 import { scripts, type ScriptDefinition } from "../scripts/registry";
 import {
@@ -24,6 +24,7 @@ import {
 import {
   MAX_FILE_SIZE_BYTES,
   type FileRole,
+  type UrlOutputOrder,
   type UrlGeneratorRunResult,
 } from "../scripts/urlGenerator/types";
 
@@ -48,6 +49,8 @@ const emptySelection: RoleSelection = {
   eansId: "",
 };
 
+const defaultOutputOrder: UrlOutputOrder = "sorted";
+
 export function App() {
   const [activeScriptId, setActiveScriptId] = useState<string | null>(null);
   const [files, setFiles] = useState<LocalWorkbookFile[]>([]);
@@ -57,6 +60,16 @@ export function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<UrlGeneratorRunResult | null>(null);
+  const [outputOrder, setOutputOrder] =
+    useState<UrlOutputOrder>(defaultOutputOrder);
+  const activeRunRef = useRef<WorkerRun<UrlGeneratorRunResult> | null>(null);
+  const runVersionRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      activeRunRef.current?.cancel();
+    };
+  }, []);
 
   const selectedFiles = useMemo(
     () => ({
@@ -71,7 +84,42 @@ export function App() {
     selection.ordersId !== selection.eansId &&
     !isRunning;
 
+  const validationMessages = useMemo(() => {
+    const messages: string[] = [];
+
+    if (files.length === 0) {
+      return messages;
+    }
+
+    if (!selectedFiles.orders) {
+      messages.push("Choose an orders workbook.");
+    }
+
+    if (!selectedFiles.eans) {
+      messages.push("Choose an EAN workbook.");
+    }
+
+    if (
+      selection.ordersId &&
+      selection.eansId &&
+      selection.ordersId === selection.eansId
+    ) {
+      messages.push("Orders and EANs must use different workbooks.");
+    }
+
+    return messages;
+  }, [files.length, selectedFiles, selection]);
+
+  function cancelCurrentRun() {
+    runVersionRef.current += 1;
+    activeRunRef.current?.cancel();
+    activeRunRef.current = null;
+    setIsRunning(false);
+  }
+
   function addFiles(fileList: FileList | File[]) {
+    cancelCurrentRun();
+
     const incoming = Array.from(fileList);
     const accepted: LocalWorkbookFile[] = [];
     const nextNotices: Notice[] = [];
@@ -116,11 +164,13 @@ export function App() {
   }
 
   function removeFile(id: string) {
+    cancelCurrentRun();
+
     const nextFiles = files.filter((item) => item.id !== id);
-      setFiles(nextFiles);
-      setSelection(autoSelectRoles(nextFiles, {
-        ordersId: selection.ordersId === id ? "" : selection.ordersId,
-        eansId: selection.eansId === id ? "" : selection.eansId,
+    setFiles(nextFiles);
+    setSelection(autoSelectRoles(nextFiles, {
+      ordersId: selection.ordersId === id ? "" : selection.ordersId,
+      eansId: selection.eansId === id ? "" : selection.eansId,
     }));
     setResult(null);
   }
@@ -139,44 +189,76 @@ export function App() {
     setIsRunning(true);
     setError("");
     setResult(null);
+    let runVersion: number | null = null;
 
     try {
+      runVersion = runVersionRef.current + 1;
+      runVersionRef.current = runVersion;
       const [ordersBuffer, eansBuffer] = await Promise.all([
         selectedFiles.orders.file.arrayBuffer(),
         selectedFiles.eans.file.arrayBuffer(),
       ]);
 
-      const response = await runUrlGeneratorInWorker([
-        {
-          role: "orders",
-          fileName: selectedFiles.orders.file.name,
-          buffer: ordersBuffer,
-        },
-        {
-          role: "eans",
-          fileName: selectedFiles.eans.file.name,
-          buffer: eansBuffer,
-        },
-      ]);
+      if (runVersionRef.current !== runVersion) {
+        return;
+      }
+
+      const workerRun = createUrlGeneratorWorkerRun(
+        [
+          {
+            role: "orders",
+            fileName: selectedFiles.orders.file.name,
+            buffer: ordersBuffer,
+          },
+          {
+            role: "eans",
+            fileName: selectedFiles.eans.file.name,
+            buffer: eansBuffer,
+          },
+        ],
+        { outputOrder },
+      );
+      activeRunRef.current = workerRun;
+      const response = await workerRun.promise;
+
+      if (runVersionRef.current !== runVersion) {
+        return;
+      }
 
       setResult(response);
     } catch (runError) {
+      if (runVersion !== null && runVersionRef.current !== runVersion) {
+        return;
+      }
+
+      if (
+        runError instanceof DOMException &&
+        runError.name === "AbortError"
+      ) {
+        return;
+      }
+
       setError(
         runError instanceof Error
           ? runError.message
           : "The files could not be processed.",
       );
     } finally {
-      setIsRunning(false);
+      if (runVersion === null || runVersionRef.current === runVersion) {
+        activeRunRef.current = null;
+        setIsRunning(false);
+      }
     }
   }
 
   function resetWorkspace() {
+    cancelCurrentRun();
     setFiles([]);
     setSelection(emptySelection);
     setNotices([]);
     setResult(null);
     setError("");
+    setOutputOrder(defaultOutputOrder);
   }
 
   function openScript(scriptId: string) {
@@ -187,6 +269,7 @@ export function App() {
   }
 
   function backToScripts() {
+    cancelCurrentRun();
     setActiveScriptId(null);
   }
 
@@ -243,6 +326,7 @@ export function App() {
               <section
                 className="control-panel"
                 aria-label={`${activeScript.name} controls`}
+                aria-busy={isRunning}
               >
                 <div className="section-title">
                   <h2>Inputs</h2>
@@ -267,6 +351,7 @@ export function App() {
                     type="file"
                     accept=".xlsx"
                     multiple
+                    disabled={isRunning}
                     onChange={(event) => {
                       if (event.target.files) {
                         addFiles(event.target.files);
@@ -279,6 +364,25 @@ export function App() {
                   <small>Drop files here or click to browse</small>
                   <small>5 MB max per file</small>
                 </label>
+
+                <div className="template-actions" aria-label="Template downloads">
+                  <a
+                    className="template-link"
+                    href="/templates/url-generator-orders-template.xlsx"
+                    download
+                  >
+                    <Download aria-hidden="true" size={16} />
+                    <span>Orders template</span>
+                  </a>
+                  <a
+                    className="template-link"
+                    href="/templates/url-generator-eans-template.xlsx"
+                    download
+                  >
+                    <Download aria-hidden="true" size={16} />
+                    <span>EAN template</span>
+                  </a>
+                </div>
 
                 {notices.length > 0 && (
                   <div className="notice-stack" aria-live="polite">
@@ -302,11 +406,15 @@ export function App() {
                           <strong>{item.file.name}</strong>
                           <div className="file-meta">
                             <span>{formatBytes(item.file.size)}</span>
-                            {item.detectedRole && (
-                              <span className="role-badge">
-                                {roleLabel(item.detectedRole)}
-                              </span>
-                            )}
+                            <span
+                              className={`role-badge ${
+                                item.detectedRole ? "" : "role-badge-muted"
+                              }`}
+                            >
+                              {item.detectedRole
+                                ? roleLabel(item.detectedRole)
+                                : "Role not detected"}
+                            </span>
                           </div>
                         </div>
                         <button
@@ -328,6 +436,7 @@ export function App() {
                     <span>Orders workbook</span>
                     <select
                       value={selection.ordersId}
+                      disabled={isRunning}
                       onChange={(event) =>
                         setSelection((current) => ({
                           ...current,
@@ -347,6 +456,7 @@ export function App() {
                     <span>EAN workbook</span>
                     <select
                       value={selection.eansId}
+                      disabled={isRunning}
                       onChange={(event) =>
                         setSelection((current) => ({
                           ...current,
@@ -362,7 +472,28 @@ export function App() {
                       ))}
                     </select>
                   </label>
+                  <label>
+                    <span>Output order</span>
+                    <select
+                      value={outputOrder}
+                      disabled={isRunning}
+                      onChange={(event) =>
+                        setOutputOrder(event.target.value as UrlOutputOrder)
+                      }
+                    >
+                      <option value="sorted">Sorted by product</option>
+                      <option value="input">Source workbook order</option>
+                    </select>
+                  </label>
                 </div>
+
+                {validationMessages.length > 0 && (
+                  <div className="validation-list" role="status">
+                    {validationMessages.map((message) => (
+                      <div key={message}>{message}</div>
+                    ))}
+                  </div>
+                )}
 
                 {error && (
                   <div className="error-box" role="alert">
@@ -384,12 +515,29 @@ export function App() {
                   )}
                   <span>{isRunning ? "Running" : "Run script"}</span>
                 </button>
+                {isRunning && (
+                  <button
+                    className="secondary-button cancel-run-button"
+                    type="button"
+                    onClick={cancelCurrentRun}
+                  >
+                    Cancel
+                  </button>
+                )}
               </section>
 
-              <section className="result-panel" aria-label="Run result">
+              <section
+                className="result-panel"
+                aria-label="Run result"
+                aria-busy={isRunning}
+              >
                 <div className="section-title">
                   <h2>Output</h2>
-                  {result && <span>Ready</span>}
+                  {result && (
+                    <span className={resultStatusClassName(result)}>
+                      {resultStatusLabel(result)}
+                    </span>
+                  )}
                 </div>
                 {result ? (
                   <ResultView result={result} />
@@ -454,13 +602,17 @@ function ScriptSelector({
 
 function ResultView({ result }: { result: UrlGeneratorRunResult }) {
   const shownIssues = result.issues.slice(0, 8);
+  const issueSummary = summarizeIssues(result.issues);
 
   return (
     <div className="result-content">
       <div className="result-header">
         <div>
           <h3>{result.outputFileName}</h3>
-          <p>{result.stats.urlsCreated.toLocaleString()} URLs created</p>
+          <p>
+            {result.stats.urlsCreated.toLocaleString()} URLs created
+            {issueSummary ? ` · ${issueSummary}` : ""}
+          </p>
         </div>
         <button
           className="download-button"
@@ -538,6 +690,57 @@ function Stat({ label, value }: { label: string; value: number }) {
       <span>{label}</span>
       <strong>{value.toLocaleString()}</strong>
     </div>
+  );
+}
+
+function resultStatusLabel(result: UrlGeneratorRunResult): string {
+  const counts = countIssues(result.issues);
+
+  if (counts.error > 0) {
+    return "Completed with errors";
+  }
+
+  if (counts.warning > 0) {
+    return "Ready with warnings";
+  }
+
+  return "Ready";
+}
+
+function resultStatusClassName(result: UrlGeneratorRunResult): string {
+  const counts = countIssues(result.issues);
+
+  if (counts.error > 0) {
+    return "status-pill status-error";
+  }
+
+  if (counts.warning > 0) {
+    return "status-pill status-warning";
+  }
+
+  return "status-pill status-ready";
+}
+
+function summarizeIssues(issues: UrlGeneratorRunResult["issues"]): string {
+  const counts = countIssues(issues);
+  const parts = [
+    counts.error > 0 ? `${counts.error} error${counts.error === 1 ? "" : "s"}` : "",
+    counts.warning > 0
+      ? `${counts.warning} warning${counts.warning === 1 ? "" : "s"}`
+      : "",
+    counts.info > 0 ? `${counts.info} note${counts.info === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+
+  return parts.join(", ");
+}
+
+function countIssues(issues: UrlGeneratorRunResult["issues"]) {
+  return issues.reduce(
+    (counts, issue) => ({
+      ...counts,
+      [issue.severity]: counts[issue.severity] + 1,
+    }),
+    { error: 0, warning: 0, info: 0 },
   );
 }
 

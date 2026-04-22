@@ -52,7 +52,13 @@ button {
   border: 0;
 }
 
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
 button:focus-visible,
+a:focus-visible,
 select:focus-visible,
 .dropzone:focus-within {
   outline: 3px solid color-mix(in srgb, var(--focus) 28%, transparent);
@@ -79,9 +85,11 @@ select:focus-visible,
 .secondary-button,
 .run-button,
 .download-button,
+.template-link,
 .file-meta,
 .role-badge,
-.script-count {
+.script-count,
+.status-pill {
   display: inline-flex;
   align-items: center;
 }
@@ -354,6 +362,32 @@ h3 {
   font-weight: 600;
 }
 
+.status-pill {
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.status-ready {
+  border: 1px solid #cfe0d8;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.status-warning {
+  border: 1px solid #f1d0ad;
+  background: var(--warning-soft);
+  color: #823d14;
+}
+
+.status-error {
+  border: 1px solid #f0bcbc;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .dropzone {
   display: grid;
   place-items: center;
@@ -395,6 +429,31 @@ h3 {
 
 .dropzone small + small {
   color: var(--text-soft);
+}
+
+.template-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.template-link {
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.template-link:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
 }
 
 .notice-stack {
@@ -495,6 +554,12 @@ h3 {
   font-weight: 650;
 }
 
+.role-badge-muted {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--text-soft);
+}
+
 .icon-button {
   display: inline-grid;
   place-items: center;
@@ -541,6 +606,21 @@ select {
   cursor: pointer;
 }
 
+select:disabled {
+  cursor: not-allowed;
+  background: #f4f5f3;
+  color: var(--text-soft);
+}
+
+.validation-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  color: var(--warning);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
 .run-button,
 .download-button {
   justify-content: center;
@@ -568,6 +648,11 @@ select {
   cursor: not-allowed;
   background: #e3e7e3;
   color: #8a938d;
+}
+
+.cancel-run-button {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .download-button {
@@ -839,6 +924,10 @@ select {
 
   .download-button {
     width: 100%;
+  }
+
+  .template-actions {
+    grid-template-columns: 1fr;
   }
 
   .issue-row {

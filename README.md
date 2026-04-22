@@ -14,8 +14,6 @@ The first script is **URL Generator**. It takes one orders workbook and one EAN 
 - Vitest
 - Cloudflare Pages
 
-`zod` is installed for future structured validation work, but the current URL Generator uses purpose-built validation helpers in `src/scripts/urlGenerator`.
-
 ## Requirements
 
 - Node.js 24 or newer is recommended.
@@ -116,10 +114,11 @@ The generated `dist` folder is static assets only. The Excel processing code is 
 2. Choose a script from the script selector.
 3. Drop or select `.xlsx` files.
 4. Choose one orders workbook and one EAN workbook.
-5. Run the script.
-6. Download the generated output workbook.
+5. Optionally choose sorted output order or source workbook order.
+6. Run the script.
+7. Download the generated output workbook.
 
-The app enforces a 5 MB maximum per file. Files are read locally with browser APIs and processed in a Web Worker.
+The app enforces a 5 MB maximum per file. Files are read locally with browser APIs and processed in a Web Worker. The URL Generator workspace also includes small downloadable orders and EAN workbook templates.
 
 ## URL Generator Input
 
@@ -201,6 +200,9 @@ The main URL format is:
 ```
 
 The script trims trailing slashes from `base_url` and URL-encodes the EAN and purchase order path segments.
+`base_url` values must be valid absolute `http://` or `https://` URLs. If a base URL includes a query string or hash, generated path segments are appended before it and the run reports an informational issue.
+
+The `urls` sheet includes `order_row_number` and `ean_row_number` columns so output rows can be traced back to the source workbooks. `unmatched_orders` includes `order_row_number`.
 
 ## Project Structure
 
@@ -287,9 +289,12 @@ The first screen is already a script selector. `App.tsx` still assumes the URL G
 - Header matching is intentionally forgiving. It normalizes case, accents, punctuation, separators, and common symbols like `#`.
 - Header rows are scanned near the top of the sheet, so exported workbooks with a title row above the actual headers should still work.
 - If no headers are detected, data starts at row 1 and positional fallback columns are used.
+- If a header row is detected, missing required columns are reported instead of silently falling back to positional columns.
 - Rows missing required values are skipped and reported in `input_issues`.
 - Product matching is case-insensitive and ignores spaces, dots, underscores, and hyphens.
 - Duplicate EAN rows are skipped by product, EAN, and SKU.
+- EAN values are checked for non-numeric characters and unusual lengths.
+- Simple zero-padded numeric formats, such as `0000000000000`, are preserved when ExcelJS exposes the number format.
 - Only the first non-empty worksheet in each workbook is currently processed.
 
 ## Known Limitations

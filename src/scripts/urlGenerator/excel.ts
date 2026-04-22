@@ -15,6 +15,7 @@ import {
   type ProcessingIssue,
   type UnmatchedOrderRow,
   type UploadedScriptFile,
+  type UrlGeneratorRunOptions,
   type UrlGeneratorRunResult,
   type UrlOutputRow,
 } from "./types";
@@ -26,6 +27,7 @@ type WorkbookRows = {
 
 export async function runUrlGenerator(
   files: UploadedScriptFile[],
+  options: UrlGeneratorRunOptions = { outputOrder: "sorted" },
 ): Promise<UrlGeneratorRunResult> {
   const ordersFile = files.find((file) => file.role === "orders");
   const eansFile = files.find((file) => file.role === "eans");
@@ -49,7 +51,7 @@ export async function runUrlGenerator(
     fileName: eansFile.fileName,
     sheetName: eansWorkbook.sheetName,
   });
-  const built = buildUrls(orders.records, eans.records);
+  const built = buildUrls(orders.records, eans.records, options);
   const issues = [...orders.issues, ...eans.issues, ...built.issues];
   const outputBuffer = await writeOutputWorkbook({
     urls: built.urls,
@@ -92,7 +94,7 @@ async function readWorkbookRows(buffer: ArrayBuffer): Promise<WorkbookRows> {
     const values: string[] = [];
 
     for (let columnIndex = 1; columnIndex <= maxColumns; columnIndex += 1) {
-      values.push(cellValueToText(row.getCell(columnIndex).value));
+      values.push(cellToText(row.getCell(columnIndex)));
     }
 
     rows[rowNumber - 1] = values;
@@ -104,7 +106,11 @@ async function readWorkbookRows(buffer: ArrayBuffer): Promise<WorkbookRows> {
   };
 }
 
-function cellValueToText(value: ExcelJS.CellValue): string {
+function cellToText(cell: ExcelJS.Cell): string {
+  return cellValueToText(cell.value, cell.numFmt);
+}
+
+function cellValueToText(value: ExcelJS.CellValue, numberFormat?: string): string {
   if (value === null || value === undefined) {
     return "";
   }
@@ -113,12 +119,18 @@ function cellValueToText(value: ExcelJS.CellValue): string {
     return value.toISOString().slice(0, 10);
   }
 
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+  if (typeof value === "number") {
+    return numberToText(value, numberFormat);
+  }
+
+  if (typeof value === "string" || typeof value === "boolean") {
     return String(value);
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => cellValueToText(item as ExcelJS.CellValue)).join("");
+    return value
+      .map((item) => cellValueToText(item as ExcelJS.CellValue, numberFormat))
+      .join("");
   }
 
   if ("richText" in value && Array.isArray(value.richText)) {
@@ -130,7 +142,7 @@ function cellValueToText(value: ExcelJS.CellValue): string {
   }
 
   if ("result" in value && value.result !== undefined) {
-    return cellValueToText(value.result as ExcelJS.CellValue);
+    return cellValueToText(value.result as ExcelJS.CellValue, numberFormat);
   }
 
   if ("formula" in value && value.formula) {
@@ -138,6 +150,27 @@ function cellValueToText(value: ExcelJS.CellValue): string {
   }
 
   return "";
+}
+
+function numberToText(value: number, numberFormat?: string): string {
+  const integerText = Number.isInteger(value) ? String(value) : null;
+
+  if (integerText && numberFormat) {
+    const zeroFormat = simpleZeroPaddingFormat(numberFormat);
+
+    if (zeroFormat) {
+      const sign = value < 0 ? "-" : "";
+      const unsignedText = Math.abs(value).toString();
+      return `${sign}${unsignedText.padStart(zeroFormat.length, "0")}`;
+    }
+  }
+
+  return String(value);
+}
+
+function simpleZeroPaddingFormat(numberFormat: string): string | null {
+  const positiveFormat = numberFormat.split(";")[0]?.trim() ?? "";
+  return /^0+$/.test(positiveFormat) ? positiveFormat : null;
 }
 
 function trimEmptyBounds(rows: string[][]): string[][] {
@@ -176,6 +209,8 @@ async function writeOutputWorkbook(input: {
   workbook.modified = new Date();
 
   addRowsSheet(workbook, "urls", [
+    "order_row_number",
+    "ean_row_number",
     "purchase_order",
     "product",
     "base_url",
@@ -186,6 +221,7 @@ async function writeOutputWorkbook(input: {
 
   if (input.unmatchedOrders.length > 0) {
     addRowsSheet(workbook, "unmatched_orders", [
+      "order_row_number",
       "purchase_order",
       "product",
       "base_url",

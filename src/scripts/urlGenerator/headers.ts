@@ -85,7 +85,7 @@ export function detectTableLayout<TKey extends string>(
     return fallbackLayout(specs, maxColumns);
   }
 
-  const assigned = assignColumnsFromHeader(rows[header] ?? [], specs, maxColumns);
+  const assigned = assignColumnsFromHeader(rows[header] ?? [], specs);
   const issues: ProcessingIssue[] = [];
 
   for (const spec of specs) {
@@ -142,7 +142,6 @@ function findLikelyHeaderRow<TKey extends string>(
 function assignColumnsFromHeader<TKey extends string>(
   row: string[],
   specs: ColumnSpec<TKey>[],
-  maxColumns: number,
 ): Map<TKey, DetectedColumn> {
   const assigned = new Map<TKey, DetectedColumn>();
   const usedColumns = new Set<number>();
@@ -166,20 +165,6 @@ function assignColumnsFromHeader<TKey extends string>(
       continue;
     }
 
-    if (
-      spec.fallbackIndex >= 0 &&
-      spec.fallbackIndex < maxColumns &&
-      !usedColumns.has(spec.fallbackIndex)
-    ) {
-      assigned.set(spec.key, {
-        key: spec.key,
-        label: spec.label,
-        columnIndex: spec.fallbackIndex,
-        columnName: excelColumnName(spec.fallbackIndex),
-        match: "fallback",
-      });
-      usedColumns.add(spec.fallbackIndex);
-    }
   }
 
   return assigned;

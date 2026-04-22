@@ -12,6 +12,7 @@ import type {
   OrderRecord,
   ProcessingIssue,
   UnmatchedOrderRow,
+  UrlGeneratorRunOptions,
   UrlOutputRow,
 } from "./types";
 
@@ -146,15 +147,19 @@ export function extractEans(rows: string[][], context: FileContext): ExtractedEa
     EAN_COLUMNS,
     context,
   );
+  const eanRecords = records.map(({ values, sourceRowNumber }) => ({
+    product: values.product,
+    ean: values.ean,
+    sku: values.sku ?? "",
+    sourceRowNumber,
+  }));
 
   return {
-    records: records.map(({ values, sourceRowNumber }) => ({
-      product: values.product,
-      ean: values.ean,
-      sku: values.sku ?? "",
-      sourceRowNumber,
-    })),
-    issues,
+    records: eanRecords,
+    issues: [
+      ...issues,
+      ...eanRecords.flatMap((record) => validateEan(record, context)),
+    ],
     detectedTable,
   };
 }
@@ -162,6 +167,7 @@ export function extractEans(rows: string[][], context: FileContext): ExtractedEa
 export function buildUrls(
   orders: OrderRecord[],
   eans: EanRecord[],
+  options: UrlGeneratorRunOptions = { outputOrder: "sorted" },
 ): BuiltUrlOutput {
   const issues: ProcessingIssue[] = [];
   const eansByProduct = new Map<string, EanRecord[]>();
@@ -197,6 +203,7 @@ export function buildUrls(
   const urls: UrlOutputRow[] = [];
   const unmatchedOrders: UnmatchedOrderRow[] = [];
   const unmatchedKeys = new Set<string>();
+  let matchedOrderCount = 0;
 
   for (const order of orders) {
     const matches = eansByProduct.get(normalizeProductKey(order.product));
@@ -205,6 +212,7 @@ export function buildUrls(
       const unmatchedKey = `${order.purchase_order}\u0000${order.product}\u0000${order.base_url}`;
       if (!unmatchedKeys.has(unmatchedKey)) {
         unmatchedOrders.push({
+          order_row_number: order.sourceRowNumber,
           purchase_order: order.purchase_order,
           product: order.product,
           base_url: normalizeBaseUrl(order.base_url),
@@ -214,17 +222,34 @@ export function buildUrls(
       continue;
     }
 
+    matchedOrderCount += 1;
+    const baseUrlResult = parseBaseUrl(order);
+
+    if (!baseUrlResult.ok) {
+      issues.push(baseUrlResult.issue);
+      continue;
+    }
+
+    if (baseUrlResult.issue) {
+      issues.push(baseUrlResult.issue);
+    }
+
     for (const match of matches) {
-      const baseUrl = normalizeBaseUrl(order.base_url);
+      const baseUrl = baseUrlResult.baseUrl;
       urls.push({
+        order_row_number: order.sourceRowNumber,
+        ean_row_number: match.sourceRowNumber,
         purchase_order: order.purchase_order,
         product: order.product,
         base_url: baseUrl,
         ean: match.ean,
         sku: match.sku,
-        url: `${baseUrl}/01/${encodeURIComponent(match.ean)}/10/${encodeURIComponent(
+        url: appendUrlPath(baseUrl, [
+          "01",
+          match.ean,
+          "10",
           order.purchase_order,
-        )}`,
+        ]),
       });
     }
   }
@@ -232,13 +257,19 @@ export function buildUrls(
   if (urls.length === 0) {
     issues.push({
       severity: "warning",
-      message: "No URLs were created because no order products matched EAN products.",
+      message:
+        matchedOrderCount > 0
+          ? "No URLs were created because matching orders had invalid Base URLs."
+          : "No URLs were created because no order products matched EAN products.",
     });
   }
 
   return {
-    urls: sortUrlRows(urls),
-    unmatchedOrders: sortUnmatchedRows(unmatchedOrders),
+    urls: options.outputOrder === "input" ? urls : sortUrlRows(urls),
+    unmatchedOrders:
+      options.outputOrder === "input"
+        ? unmatchedOrders
+        : sortUnmatchedRows(unmatchedOrders),
     issues,
   };
 }
@@ -336,6 +367,107 @@ function withContext(
 
 function normalizeBaseUrl(url: string): string {
   return normalizeDataText(url).replace(/\/+$/g, "");
+}
+
+function validateEan(record: EanRecord, context: FileContext): ProcessingIssue[] {
+  const issues: ProcessingIssue[] = [];
+
+  if (!/^\d+$/.test(record.ean)) {
+    issues.push(
+      withContext(
+        {
+          severity: "warning",
+          rowNumber: record.sourceRowNumber,
+          field: "ean",
+          message: "EAN contains non-numeric characters.",
+        },
+        context,
+      ),
+    );
+    return issues;
+  }
+
+  if (![8, 12, 13, 14].includes(record.ean.length)) {
+    issues.push(
+      withContext(
+        {
+          severity: "warning",
+          rowNumber: record.sourceRowNumber,
+          field: "ean",
+          message:
+            "EAN length is unusual. If leading zeroes are missing, format the source column as text or with a zero-padding number format.",
+        },
+        context,
+      ),
+    );
+  }
+
+  return issues;
+}
+
+function parseBaseUrl(order: OrderRecord):
+  | { ok: true; baseUrl: string; issue?: ProcessingIssue }
+  | { ok: false; issue: ProcessingIssue } {
+  const rawBaseUrl = normalizeDataText(order.base_url);
+
+  try {
+    const parsed = new URL(rawBaseUrl);
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return {
+        ok: false,
+        issue: {
+          severity: "warning",
+          fileRole: "orders",
+          rowNumber: order.sourceRowNumber,
+          field: "base_url",
+          message: "Skipped order because Base URL must start with http:// or https://.",
+        },
+      };
+    }
+
+    return {
+      ok: true,
+      baseUrl: serializeBaseUrl(parsed),
+      issue:
+        parsed.search || parsed.hash
+          ? {
+              severity: "info",
+              fileRole: "orders",
+              rowNumber: order.sourceRowNumber,
+              field: "base_url",
+              message:
+                "Base URL includes a query string or hash. Generated path segments are appended before it.",
+            }
+          : undefined,
+    };
+  } catch {
+    return {
+      ok: false,
+      issue: {
+        severity: "warning",
+        fileRole: "orders",
+        rowNumber: order.sourceRowNumber,
+        field: "base_url",
+        message: "Skipped order because Base URL is not a valid absolute URL.",
+      },
+    };
+  }
+}
+
+function serializeBaseUrl(url: URL): string {
+  const path = url.pathname === "/" ? "" : url.pathname.replace(/\/+$/g, "");
+  return `${url.origin}${path}${url.search}${url.hash}`;
+}
+
+function appendUrlPath(baseUrl: string, segments: string[]): string {
+  const parsed = new URL(baseUrl);
+  const prefix =
+    parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/g, "");
+  parsed.pathname = `${prefix}/${segments
+    .map((segment) => encodeURIComponent(segment))
+    .join("/")}`;
+  return parsed.toString();
 }
 
 function sortUrlRows(rows: UrlOutputRow[]): UrlOutputRow[] {

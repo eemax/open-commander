@@ -43,6 +43,8 @@ describe("URL generator transform", () => {
     ]);
     expect(output.urls).toEqual([
       {
+        order_row_number: 3,
+        ean_row_number: 2,
         purchase_order: "PO 1",
         product: "ABC-123",
         base_url: "https://example.test",
@@ -53,6 +55,7 @@ describe("URL generator transform", () => {
     ]);
     expect(output.unmatchedOrders).toEqual([
       {
+        order_row_number: 4,
         purchase_order: "PO/2",
         product: "missing",
         base_url: "https://example.test",
@@ -134,6 +137,121 @@ describe("URL generator transform", () => {
         expect.objectContaining({
           severity: "info",
           message: "1 duplicate EAN row skipped.",
+        }),
+      ]),
+    );
+  });
+
+  it("does not silently use positional fallback columns after detecting a header row", () => {
+    const orders = extractOrders(
+      [
+        ["Purchase Order", "Product", "Notes"],
+        ["1001", "P-100", "https://example.test/base"],
+      ],
+      ordersContext,
+    );
+
+    expect(orders.records).toHaveLength(0);
+    expect(orders.detectedTable.columns.map((column) => column.key)).toEqual([
+      "purchase_order",
+      "product",
+    ]);
+    expect(orders.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          field: "base_url",
+          message: 'Could not find required column "Base URL".',
+        }),
+      ]),
+    );
+  });
+
+  it("validates base URLs before creating rows", () => {
+    const output = buildUrls(
+      [
+        {
+          purchase_order: "1001",
+          product: "P1",
+          base_url: "notaurl",
+          sourceRowNumber: 2,
+        },
+        {
+          purchase_order: "1002",
+          product: "P1",
+          base_url: "https://example.test/base?ref=1#top",
+          sourceRowNumber: 3,
+        },
+      ],
+      [{ product: "P1", ean: "1234567890123", sku: "", sourceRowNumber: 2 }],
+      { outputOrder: "input" },
+    );
+
+    expect(output.urls.map((row) => row.url)).toEqual([
+      "https://example.test/base/01/1234567890123/10/1002?ref=1#top",
+    ]);
+    expect(output.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "warning",
+          rowNumber: 2,
+          field: "base_url",
+        }),
+        expect.objectContaining({
+          severity: "info",
+          rowNumber: 3,
+          field: "base_url",
+        }),
+      ]),
+    );
+  });
+
+  it("can preserve source workbook order instead of sorted output order", () => {
+    const orders = [
+      {
+        purchase_order: "1002",
+        product: "B",
+        base_url: "https://example.test",
+        sourceRowNumber: 2,
+      },
+      {
+        purchase_order: "1001",
+        product: "A",
+        base_url: "https://example.test",
+        sourceRowNumber: 3,
+      },
+    ];
+    const eans = [
+      { product: "A", ean: "1111111111111", sku: "", sourceRowNumber: 2 },
+      { product: "B", ean: "2222222222222", sku: "", sourceRowNumber: 3 },
+    ];
+
+    expect(buildUrls(orders, eans).urls.map((row) => row.product)).toEqual([
+      "A",
+      "B",
+    ]);
+    expect(
+      buildUrls(orders, eans, { outputOrder: "input" }).urls.map(
+        (row) => row.product,
+      ),
+    ).toEqual(["B", "A"]);
+  });
+
+  it("warns on unusual EAN lengths that may indicate lost leading zeroes", () => {
+    const eans = extractEans(
+      [
+        ["Product", "EAN"],
+        ["P1", "12345"],
+      ],
+      eansContext,
+    );
+
+    expect(eans.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "warning",
+          rowNumber: 2,
+          field: "ean",
         }),
       ]),
     );
