@@ -4,7 +4,7 @@ This file is for future coding agents working on Open Commander.
 
 ## Current State
 
-Open Commander is a browser-only Excel script runner hosted as static assets on Cloudflare Pages. There is no backend, no database, no file storage, and no Cloudflare Worker API for the current workflow.
+Open Commander is a browser-only Excel script runner hosted as static assets on Cloudflare. The current Cloudflare setup uses Workers static assets through Wrangler because the project requires a deploy command. There is no backend, no database, no file storage, and no custom Cloudflare Worker API for the current workflow.
 
 The first screen is a script selector. The only implemented script is URL Generator:
 
@@ -22,6 +22,7 @@ npm run dev
 npm test
 npm run build
 npm run preview
+npm run deploy
 ```
 
 Typical local URLs:
@@ -95,17 +96,18 @@ npm run dev
 
 Then open the printed local URL and smoke-test upload, role selection, run, and download with small `.xlsx` workbooks.
 
-## Cloudflare Pages
+## Cloudflare Deployment
 
 Deployment settings:
 
 ```text
 Build command: npm run build
-Build output directory: dist
+Deploy command: npm run deploy
+Non-production branch deploy command: npm run deploy:preview
 Root directory: /
 ```
 
-No Cloudflare bindings are required.
+`wrangler.jsonc` deploys the built `dist` directory as static assets with single-page app fallback. No Cloudflare bindings are required.
 
 ## Things To Watch
 

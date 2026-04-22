@@ -94,9 +94,28 @@ The current tests cover:
 - duplicate EAN row handling
 - workbook read/write behavior through ExcelJS
 
-## Cloudflare Pages Deployment
+## Cloudflare Deployment
 
-Use these Cloudflare Pages settings:
+If the Cloudflare project uses Workers Builds and requires a deploy command, use:
+
+```text
+Build command: npm run build
+Deploy command: npm run deploy
+Non-production branch deploy command: npm run deploy:preview
+Root directory: /
+```
+
+`wrangler.jsonc` configures the deployment as Workers static assets from `dist` with single-page app fallback. There is still no server route, database, object storage, KV namespace, or custom Worker API required for the current app.
+
+The generated `dist` folder is static assets only. The Excel processing code is bundled into a browser Web Worker.
+
+For a manual Workers static-assets deployment from a local machine or external CI, run:
+
+```sh
+npm run deploy:worker
+```
+
+If you are using a classic Cloudflare Pages Git project that does not require a deploy command, the Pages settings are:
 
 ```text
 Build command: npm run build
@@ -104,9 +123,13 @@ Build output directory: dist
 Root directory: /
 ```
 
-No server routes, database, object storage, KV namespace, or Worker binding is required for the current app.
+For a manual Pages direct upload, run:
 
-The generated `dist` folder is static assets only. The Excel processing code is bundled into a browser Web Worker.
+```sh
+npm run deploy:pages
+```
+
+That command builds the app and uploads `dist` with `wrangler pages deploy`.
 
 ## User Workflow
 
