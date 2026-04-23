@@ -19,6 +19,18 @@ type WorkbookRows = {
   rows: string[][];
 };
 
+export class FatalInputIssueError extends Error {
+  readonly issues: ProcessingIssue[];
+
+  constructor(issues: ProcessingIssue[]) {
+    const errors = issues.filter((issue) => issue.severity === "error");
+
+    super(formatFatalInputIssueMessage(errors));
+    this.name = "FatalInputIssueError";
+    this.issues = errors;
+  }
+}
+
 export async function runUrlGenerator(
   files: UploadedScriptFile[],
 ): Promise<UrlGeneratorRunResult> {
@@ -82,6 +94,10 @@ function assertNoFatalInputIssues(issues: ProcessingIssue[]): void {
     return;
   }
 
+  throw new FatalInputIssueError(errors);
+}
+
+function formatFatalInputIssueMessage(errors: ProcessingIssue[]): string {
   const shownErrors = errors.slice(0, 5).map(formatIssueSummary);
   const remainingErrorCount = errors.length - shownErrors.length;
   const suffix =
@@ -90,12 +106,11 @@ function assertNoFatalInputIssues(issues: ProcessingIssue[]): void {
           remainingErrorCount === 1 ? "" : "s"
         }`
       : "";
+  const errorLabel = errors.length === 1 ? "error" : "errors";
 
-  throw new Error(
-    `Run failed because input data has errors: ${shownErrors.join(
-      "; ",
-    )}${suffix}.`,
-  );
+  return `Run failed because input data has ${errors.length} ${errorLabel}: ${shownErrors.join(
+    "; ",
+  )}${suffix}.`;
 }
 
 function formatIssueSummary(issue: ProcessingIssue): string {

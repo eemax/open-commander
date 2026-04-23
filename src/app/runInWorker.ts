@@ -1,5 +1,6 @@
 import {
   URL_GENERATOR_SCRIPT_ID,
+  type ProcessingIssue,
   type UploadedScriptFile,
   type UrlGeneratorRunResult,
 } from "../scripts/urlGenerator/types";
@@ -11,7 +12,9 @@ type WorkerSuccess = {
 
 type WorkerFailure = {
   type: "error";
+  kind: "input-issues" | "runtime";
   message: string;
+  issues?: ProcessingIssue[];
 };
 
 type WorkerResponse = WorkerSuccess | WorkerFailure;
@@ -20,6 +23,18 @@ export type WorkerRun<T> = {
   promise: Promise<T>;
   cancel: () => void;
 };
+
+export class WorkerRunError extends Error {
+  readonly kind: WorkerFailure["kind"];
+  readonly issues: ProcessingIssue[];
+
+  constructor(failure: WorkerFailure) {
+    super(failure.message);
+    this.name = "WorkerRunError";
+    this.kind = failure.kind;
+    this.issues = failure.issues ?? [];
+  }
+}
 
 export function createUrlGeneratorWorkerRun(
   files: UploadedScriptFile[],
@@ -45,7 +60,7 @@ export function createUrlGeneratorWorkerRun(
         return;
       }
 
-      reject(new Error(event.data.message));
+      reject(new WorkerRunError(event.data));
     };
 
     worker.onerror = (event) => {

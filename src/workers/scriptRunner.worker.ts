@@ -1,6 +1,10 @@
-import { runUrlGenerator } from "../scripts/urlGenerator/excel";
+import {
+  FatalInputIssueError,
+  runUrlGenerator,
+} from "../scripts/urlGenerator/excel";
 import {
   URL_GENERATOR_SCRIPT_ID,
+  type ProcessingIssue,
   type UploadedScriptFile,
   type UrlGeneratorRunResult,
 } from "../scripts/urlGenerator/types";
@@ -18,7 +22,9 @@ type WorkerSuccess = {
 
 type WorkerFailure = {
   type: "error";
+  kind: "input-issues" | "runtime";
   message: string;
+  issues?: ProcessingIssue[];
 };
 
 self.onmessage = async (event: MessageEvent<RunMessage>) => {
@@ -31,13 +37,23 @@ self.onmessage = async (event: MessageEvent<RunMessage>) => {
     const response: WorkerSuccess = { type: "success", result };
     self.postMessage(response, [result.outputBuffer]);
   } catch (error) {
-    const response: WorkerFailure = {
-      type: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "The workbook could not be processed.",
-    };
+    const response: WorkerFailure =
+      error instanceof FatalInputIssueError
+        ? {
+            type: "error",
+            kind: "input-issues",
+            message: error.message,
+            issues: error.issues,
+          }
+        : {
+            type: "error",
+            kind: "runtime",
+            message:
+              error instanceof Error
+                ? error.message
+                : "The workbook could not be processed.",
+          };
+
     self.postMessage(response);
   }
 };

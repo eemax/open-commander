@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 
-import { runUrlGenerator } from "./excel";
+import { FatalInputIssueError, runUrlGenerator } from "./excel";
 
 describe("URL generator workbook runner", () => {
   it("reads two xlsx buffers and writes a downloadable workbook", async () => {
@@ -99,20 +99,33 @@ describe("URL generator workbook runner", () => {
       ["abc 1", "1234567890123", ""],
     ]);
 
-    await expect(
-      runUrlGenerator([
-        {
-          role: "orders",
-          fileName: "spring_orders.xlsx",
-          buffer: ordersBuffer,
-        },
-        {
-          role: "eans",
-          fileName: "spring_eans.xlsx",
-          buffer: eansBuffer,
-        },
+    const runPromise = runUrlGenerator([
+      {
+        role: "orders",
+        fileName: "spring_orders.xlsx",
+        buffer: ordersBuffer,
+      },
+      {
+        role: "eans",
+        fileName: "spring_eans.xlsx",
+        buffer: eansBuffer,
+      },
+    ]);
+
+    await expect(runPromise).rejects.toBeInstanceOf(FatalInputIssueError);
+    await expect(runPromise).rejects.toThrow(
+      'Mandatory field "Purchase order" is empty.',
+    );
+    await expect(runPromise).rejects.toMatchObject({
+      issues: expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          rowNumber: 2,
+          field: "purchase_order",
+          message: 'Mandatory field "Purchase order" is empty.',
+        }),
       ]),
-    ).rejects.toThrow('Mandatory field "Purchase order" is empty.');
+    });
   });
 
   it("fails the run when unique identifiers are duplicated", async () => {

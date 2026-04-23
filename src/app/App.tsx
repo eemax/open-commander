@@ -14,7 +14,11 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { createUrlGeneratorWorkerRun, type WorkerRun } from "./runInWorker";
+import {
+  createUrlGeneratorWorkerRun,
+  WorkerRunError,
+  type WorkerRun,
+} from "./runInWorker";
 import { downloadArrayBuffer } from "../lib/download";
 import { scripts, type ScriptDefinition } from "../scripts/registry";
 import {
@@ -24,6 +28,7 @@ import {
 import {
   MAX_FILE_SIZE_BYTES,
   type FileRole,
+  type ProcessingIssue,
   type UrlGeneratorRunResult,
 } from "../scripts/urlGenerator/types";
 
@@ -43,6 +48,14 @@ type Notice = {
   message: string;
 };
 
+type RunFailure = {
+  title: string;
+  summary: string;
+  nextSteps: string[];
+  issues: ProcessingIssue[];
+  details?: string;
+};
+
 const emptySelection: RoleSelection = {
   ordersId: "",
   eansId: "",
@@ -57,6 +70,7 @@ export function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<UrlGeneratorRunResult | null>(null);
+  const [runFailure, setRunFailure] = useState<RunFailure | null>(null);
   const activeRunRef = useRef<WorkerRun<UrlGeneratorRunResult> | null>(null);
   const runVersionRef = useRef(0);
 
@@ -155,6 +169,7 @@ export function App() {
     setSelection(autoSelectRoles(nextFiles, selection));
     setNotices(nextNotices);
     setResult(null);
+    setRunFailure(null);
     setError("");
   }
 
@@ -168,15 +183,19 @@ export function App() {
       eansId: selection.eansId === id ? "" : selection.eansId,
     }));
     setResult(null);
+    setRunFailure(null);
+    setError("");
   }
 
   async function runSelectedScript() {
     if (!selectedFiles.orders || !selectedFiles.eans) {
+      setRunFailure(null);
       setError("Choose one orders workbook and one EAN workbook.");
       return;
     }
 
     if (selectedFiles.orders.id === selectedFiles.eans.id) {
+      setRunFailure(null);
       setError("Orders and EANs must use different workbooks.");
       return;
     }
@@ -184,6 +203,7 @@ export function App() {
     setIsRunning(true);
     setError("");
     setResult(null);
+    setRunFailure(null);
     let runVersion: number | null = null;
 
     try {
@@ -218,6 +238,7 @@ export function App() {
       }
 
       setResult(response);
+      setRunFailure(null);
     } catch (runError) {
       if (runVersion !== null && runVersionRef.current !== runVersion) {
         return;
@@ -230,11 +251,8 @@ export function App() {
         return;
       }
 
-      setError(
-        runError instanceof Error
-          ? runError.message
-          : "The files could not be processed.",
-      );
+      setError("");
+      setRunFailure(describeRunFailure(runError));
     } finally {
       if (runVersion === null || runVersionRef.current === runVersion) {
         activeRunRef.current = null;
@@ -249,6 +267,7 @@ export function App() {
     setSelection(emptySelection);
     setNotices([]);
     setResult(null);
+    setRunFailure(null);
     setError("");
   }
 
@@ -511,14 +530,18 @@ export function App() {
               >
                 <div className="section-title">
                   <h2>Output</h2>
-                  {result && (
+                  {result ? (
                     <span className={resultStatusClassName(result)}>
                       {resultStatusLabel(result)}
                     </span>
-                  )}
+                  ) : runFailure ? (
+                    <span className="status-pill status-error">Run failed</span>
+                  ) : null}
                 </div>
                 {result ? (
                   <ResultView result={result} />
+                ) : runFailure ? (
+                  <RunFailureView failure={runFailure} />
                 ) : (
                   <div className="result-empty">
                     <CheckCircle2 aria-hidden="true" size={28} />
@@ -574,6 +597,53 @@ function ScriptSelector({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function RunFailureView({ failure }: { failure: RunFailure }) {
+  const shownIssues = failure.issues.slice(0, 8);
+
+  return (
+    <div className="run-failure" role="alert">
+      <div className="run-failure-hero">
+        <AlertTriangle aria-hidden="true" size={26} />
+        <div>
+          <h3>{failure.title}</h3>
+          <p>{failure.summary}</p>
+        </div>
+      </div>
+
+      <div className="failure-guidance">
+        <strong>What needs to change</strong>
+        <ul className="failure-list">
+          {failure.nextSteps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ul>
+      </div>
+
+      {shownIssues.length > 0 ? (
+        <div className="issues">
+          <div className="issues-heading">
+            <AlertTriangle aria-hidden="true" size={18} />
+            <h3>Rows to fix</h3>
+          </div>
+          <IssueTable issues={shownIssues} />
+          {failure.issues.length > shownIssues.length && (
+            <p className="issue-footnote">
+              {failure.issues.length - shownIssues.length} more error
+              {failure.issues.length - shownIssues.length === 1 ? "" : "s"} to
+              fix.
+            </p>
+          )}
+        </div>
+      ) : failure.details ? (
+        <div className="failure-details">
+          <strong>Error details</strong>
+          <p>{failure.details}</p>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -639,16 +709,7 @@ function ResultView({ result }: { result: UrlGeneratorRunResult }) {
             <AlertTriangle aria-hidden="true" size={18} />
             <h3>Issues</h3>
           </div>
-          <div className="issue-table">
-            {shownIssues.map((issue, index) => (
-              <div className="issue-row" key={`${issue.message}-${index}`}>
-                <strong>{issue.severity}</strong>
-                <span>{issue.fileName ?? issue.fileRole ?? "output"}</span>
-                <span>{issue.rowNumber ? `Row ${issue.rowNumber}` : ""}</span>
-                <p>{issue.message}</p>
-              </div>
-            ))}
-          </div>
+          <IssueTable issues={shownIssues} />
           {result.issues.length > shownIssues.length && (
             <p className="issue-footnote">
               {result.issues.length - shownIssues.length} more issue
@@ -658,6 +719,21 @@ function ResultView({ result }: { result: UrlGeneratorRunResult }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function IssueTable({ issues }: { issues: ProcessingIssue[] }) {
+  return (
+    <div className="issue-table">
+      {issues.map((issue, index) => (
+        <div className="issue-row" key={`${issue.message}-${index}`}>
+          <strong>{issue.severity}</strong>
+          <span>{formatIssueSource(issue)}</span>
+          <span>{formatIssueLocation(issue)}</span>
+          <p>{issue.message}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -720,6 +796,104 @@ function countIssues(issues: UrlGeneratorRunResult["issues"]) {
     }),
     { error: 0, warning: 0, info: 0 },
   );
+}
+
+function describeRunFailure(error: unknown): RunFailure {
+  if (error instanceof WorkerRunError && error.kind === "input-issues") {
+    const issues = error.issues.filter((issue) => issue.severity === "error");
+
+    if (issues.length > 0) {
+      const errorCount = issues.length;
+
+      return {
+        title: "Input data needs changes",
+        summary: `The run stopped before creating an output workbook because ${errorCount.toLocaleString()} input ${
+          errorCount === 1 ? "error was" : "errors were"
+        } found.`,
+        nextSteps: buildInputFailureSteps(issues),
+        issues,
+      };
+    }
+  }
+
+  const message =
+    error instanceof Error ? error.message : "The files could not be processed.";
+
+  return {
+    title: "Run could not complete",
+    summary: "Open Commander could not create an output workbook from these files.",
+    nextSteps: [
+      "Check that both selected files are valid .xlsx workbooks and are not password-protected.",
+      "Upload the corrected files and run the script again.",
+    ],
+    issues: [],
+    details: message,
+  };
+}
+
+function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
+  const messages = issues.map((issue) => issue.message.toLowerCase());
+  const fields = new Set(issues.map((issue) => issue.field).filter(Boolean));
+  const hasBaseUrlIssue =
+    fields.has("base_url") || messages.some((message) => message.includes("base url"));
+  const hasDuplicateIssue = messages.some((message) =>
+    message.includes("duplicate"),
+  );
+  const hasMissingRequiredIssue = messages.some(
+    (message) =>
+      message.includes("mandatory field") ||
+      message.includes("required column") ||
+      message.includes("no usable data rows"),
+  );
+  const hasEanFormatIssue = messages.some(
+    (message) =>
+      message.includes("ean contains") || message.includes("ean must"),
+  );
+  const steps = [
+    "Edit the listed rows in the source workbook, save the file, then upload the corrected workbook.",
+  ];
+
+  if (hasMissingRequiredIssue) {
+    steps.push(
+      "Orders need purchase_order, product, and base_url. EANs need product, ean, and sku.",
+    );
+  }
+
+  if (hasBaseUrlIssue) {
+    steps.push(
+      "Base URL values must be https root domains like https://example.com; remove paths such as /product, query strings, and http:// values.",
+    );
+  }
+
+  if (hasDuplicateIssue) {
+    steps.push("Make duplicate purchase orders, EANs, and SKUs unique.");
+  }
+
+  if (hasEanFormatIssue) {
+    steps.push(
+      "EAN values must contain digits only. Format the source column as text when leading zeroes matter.",
+    );
+  }
+
+  steps.push("Run the script again after the source data is corrected.");
+
+  return steps;
+}
+
+function formatIssueSource(issue: ProcessingIssue): string {
+  const source =
+    issue.fileName ?? (issue.fileRole ? roleLabel(issue.fileRole) : "output");
+
+  return issue.sheetName ? `${source} · ${issue.sheetName}` : source;
+}
+
+function formatIssueLocation(issue: ProcessingIssue): string {
+  const parts = [
+    issue.rowNumber ? `Row ${issue.rowNumber}` : "",
+    issue.field ?? "",
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" · ") : "Workbook";
 }
 
 function autoSelectRoles(

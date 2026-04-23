@@ -700,6 +700,75 @@ select:disabled {
   font-weight: 500;
 }
 
+.run-failure {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 420px;
+}
+
+.run-failure-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 13px;
+  padding: 15px;
+  border: 1px solid #f0bcbc;
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.run-failure-hero svg {
+  margin-top: 2px;
+}
+
+.run-failure-hero h3 {
+  margin: 0 0 6px;
+  color: var(--danger);
+}
+
+.run-failure-hero p {
+  margin: 0;
+  color: #6f3434;
+  font-size: 0.92rem;
+  font-weight: 550;
+  line-height: 1.45;
+}
+
+.failure-guidance,
+.failure-details {
+  padding: 14px 15px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.failure-guidance strong,
+.failure-details strong {
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 720;
+}
+
+.failure-list {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 520;
+  line-height: 1.4;
+}
+
+.failure-details p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 520;
+  overflow-wrap: anywhere;
+}
+
 .result-content {
   display: grid;
   align-content: start;
@@ -858,7 +927,8 @@ select:disabled {
     border-bottom: 1px solid var(--border);
   }
 
-  .result-empty {
+  .result-empty,
+  .run-failure {
     min-height: 230px;
   }
 }
