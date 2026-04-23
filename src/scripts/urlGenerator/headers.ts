@@ -63,7 +63,7 @@ export function isMissingText(value: string): boolean {
 }
 
 export function normalizeDataText(value: string): string {
-  return value.replace(/\u00a0/g, " ").trim();
+  return value.replace(/\u00a0/g, " ").trim().replace(/^'+/g, "").trim();
 }
 
 export function normalizeProductKey(value: string): string {

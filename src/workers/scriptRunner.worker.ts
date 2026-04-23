@@ -2,7 +2,6 @@ import { runUrlGenerator } from "../scripts/urlGenerator/excel";
 import {
   URL_GENERATOR_SCRIPT_ID,
   type UploadedScriptFile,
-  type UrlGeneratorRunOptions,
   type UrlGeneratorRunResult,
 } from "../scripts/urlGenerator/types";
 
@@ -10,7 +9,6 @@ type RunMessage = {
   type: "run";
   scriptId: typeof URL_GENERATOR_SCRIPT_ID;
   files: UploadedScriptFile[];
-  options: UrlGeneratorRunOptions;
 };
 
 type WorkerSuccess = {
@@ -29,7 +27,7 @@ self.onmessage = async (event: MessageEvent<RunMessage>) => {
       throw new Error("Unknown script request.");
     }
 
-    const result = await runUrlGenerator(event.data.files, event.data.options);
+    const result = await runUrlGenerator(event.data.files);
     const response: WorkerSuccess = { type: "success", result };
     self.postMessage(response, [result.outputBuffer]);
   } catch (error) {

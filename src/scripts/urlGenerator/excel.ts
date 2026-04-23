@@ -1,13 +1,8 @@
 import ExcelJS from "exceljs";
 
-import {
-  deriveOutputFileName,
-} from "./fileRoles";
-import {
-  buildUrls,
-  extractEans,
-  extractOrders,
-} from "./transform";
+import { deriveOutputFileName } from "./fileRoles";
+import { normalizeDataText } from "./headers";
+import { buildUrls, extractEans, extractOrders } from "./transform";
 import {
   XLSX_MIME_TYPE,
   URL_GENERATOR_SCRIPT_ID,
@@ -15,7 +10,6 @@ import {
   type ProcessingIssue,
   type UnmatchedOrderRow,
   type UploadedScriptFile,
-  type UrlGeneratorRunOptions,
   type UrlGeneratorRunResult,
   type UrlOutputRow,
 } from "./types";
@@ -27,7 +21,6 @@ type WorkbookRows = {
 
 export async function runUrlGenerator(
   files: UploadedScriptFile[],
-  options: UrlGeneratorRunOptions = { outputOrder: "sorted" },
 ): Promise<UrlGeneratorRunResult> {
   const ordersFile = files.find((file) => file.role === "orders");
   const eansFile = files.find((file) => file.role === "eans");
@@ -51,8 +44,13 @@ export async function runUrlGenerator(
     fileName: eansFile.fileName,
     sheetName: eansWorkbook.sheetName,
   });
-  const built = buildUrls(orders.records, eans.records, options);
-  const issues = [...orders.issues, ...eans.issues, ...built.issues];
+  const inputIssues = [...orders.issues, ...eans.issues];
+  assertNoFatalInputIssues(inputIssues);
+
+  const built = buildUrls(orders.records, eans.records);
+  const issues = [...inputIssues, ...built.issues];
+  assertNoFatalInputIssues(issues);
+
   const outputBuffer = await writeOutputWorkbook({
     urls: built.urls,
     unmatchedOrders: built.unmatchedOrders,
@@ -75,6 +73,41 @@ export async function runUrlGenerator(
     issues,
     detectedTables: [orders.detectedTable, eans.detectedTable],
   };
+}
+
+function assertNoFatalInputIssues(issues: ProcessingIssue[]): void {
+  const errors = issues.filter((issue) => issue.severity === "error");
+
+  if (errors.length === 0) {
+    return;
+  }
+
+  const shownErrors = errors.slice(0, 5).map(formatIssueSummary);
+  const remainingErrorCount = errors.length - shownErrors.length;
+  const suffix =
+    remainingErrorCount > 0
+      ? `; and ${remainingErrorCount} more error${
+          remainingErrorCount === 1 ? "" : "s"
+        }`
+      : "";
+
+  throw new Error(
+    `Run failed because input data has errors: ${shownErrors.join(
+      "; ",
+    )}${suffix}.`,
+  );
+}
+
+function formatIssueSummary(issue: ProcessingIssue): string {
+  const location = [
+    issue.fileName ?? issue.fileRole,
+    issue.rowNumber ? `row ${issue.rowNumber}` : "",
+    issue.field ?? "",
+  ].filter(Boolean);
+
+  return `${location.length > 0 ? `${location.join(" ")}: ` : ""}${
+    issue.message
+  }`;
 }
 
 async function readWorkbookRows(buffer: ArrayBuffer): Promise<WorkbookRows> {
@@ -149,6 +182,10 @@ function cellValueToText(value: ExcelJS.CellValue, numberFormat?: string): strin
     return String(value.formula);
   }
 
+  if ("error" in value && value.error) {
+    return String(value.error);
+  }
+
   return "";
 }
 
@@ -174,7 +211,7 @@ function simpleZeroPaddingFormat(numberFormat: string): string | null {
 }
 
 function trimEmptyBounds(rows: string[][]): string[][] {
-  const normalizedRows = rows.map((row) => row.map((value) => value.trim()));
+  const normalizedRows = rows.map((row) => row.map(normalizeDataText));
   let lastRowIndex = normalizedRows.length - 1;
 
   while (
@@ -209,22 +246,22 @@ async function writeOutputWorkbook(input: {
   workbook.modified = new Date();
 
   addRowsSheet(workbook, "urls", [
-    "order_row_number",
-    "ean_row_number",
     "purchase_order",
     "product",
-    "base_url",
-    "ean",
     "sku",
+    "ean",
+    "base_url",
     "url",
+    "order_row_number",
+    "ean_row_number",
   ], input.urls);
 
   if (input.unmatchedOrders.length > 0) {
     addRowsSheet(workbook, "unmatched_orders", [
-      "order_row_number",
       "purchase_order",
       "product",
       "base_url",
+      "order_row_number",
     ], input.unmatchedOrders);
   }
 

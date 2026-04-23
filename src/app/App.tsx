@@ -24,7 +24,6 @@ import {
 import {
   MAX_FILE_SIZE_BYTES,
   type FileRole,
-  type UrlOutputOrder,
   type UrlGeneratorRunResult,
 } from "../scripts/urlGenerator/types";
 
@@ -49,8 +48,6 @@ const emptySelection: RoleSelection = {
   eansId: "",
 };
 
-const defaultOutputOrder: UrlOutputOrder = "sorted";
-
 export function App() {
   const [activeScriptId, setActiveScriptId] = useState<string | null>(null);
   const [files, setFiles] = useState<LocalWorkbookFile[]>([]);
@@ -60,8 +57,6 @@ export function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<UrlGeneratorRunResult | null>(null);
-  const [outputOrder, setOutputOrder] =
-    useState<UrlOutputOrder>(defaultOutputOrder);
   const activeRunRef = useRef<WorkerRun<UrlGeneratorRunResult> | null>(null);
   const runVersionRef = useRef(0);
 
@@ -203,21 +198,18 @@ export function App() {
         return;
       }
 
-      const workerRun = createUrlGeneratorWorkerRun(
-        [
-          {
-            role: "orders",
-            fileName: selectedFiles.orders.file.name,
-            buffer: ordersBuffer,
-          },
-          {
-            role: "eans",
-            fileName: selectedFiles.eans.file.name,
-            buffer: eansBuffer,
-          },
-        ],
-        { outputOrder },
-      );
+      const workerRun = createUrlGeneratorWorkerRun([
+        {
+          role: "orders",
+          fileName: selectedFiles.orders.file.name,
+          buffer: ordersBuffer,
+        },
+        {
+          role: "eans",
+          fileName: selectedFiles.eans.file.name,
+          buffer: eansBuffer,
+        },
+      ]);
       activeRunRef.current = workerRun;
       const response = await workerRun.promise;
 
@@ -258,7 +250,6 @@ export function App() {
     setNotices([]);
     setResult(null);
     setError("");
-    setOutputOrder(defaultOutputOrder);
   }
 
   function openScript(scriptId: string) {
@@ -470,19 +461,6 @@ export function App() {
                           {item.file.name}
                         </option>
                       ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Output order</span>
-                    <select
-                      value={outputOrder}
-                      disabled={isRunning}
-                      onChange={(event) =>
-                        setOutputOrder(event.target.value as UrlOutputOrder)
-                      }
-                    >
-                      <option value="sorted">Sorted by product</option>
-                      <option value="input">Source workbook order</option>
                     </select>
                   </label>
                 </div>

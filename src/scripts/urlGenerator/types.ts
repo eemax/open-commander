@@ -23,12 +23,6 @@ export type UploadedScriptFile = {
   buffer: ArrayBuffer;
 };
 
-export type UrlOutputOrder = "sorted" | "input";
-
-export type UrlGeneratorRunOptions = {
-  outputOrder: UrlOutputOrder;
-};
-
 export type DetectedColumn = {
   key: string;
   label: string;
@@ -61,21 +55,21 @@ export type EanRecord = {
 };
 
 export type UrlOutputRow = {
-  order_row_number: number;
-  ean_row_number: number;
   purchase_order: string;
   product: string;
-  base_url: string;
-  ean: string;
   sku: string;
+  ean: string;
+  base_url: string;
   url: string;
+  order_row_number: number;
+  ean_row_number: number;
 };
 
 export type UnmatchedOrderRow = {
-  order_row_number: number;
   purchase_order: string;
   product: string;
   base_url: string;
+  order_row_number: number;
 };
 
 export type UrlGeneratorStats = {

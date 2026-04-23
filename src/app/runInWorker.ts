@@ -1,7 +1,6 @@
 import {
   URL_GENERATOR_SCRIPT_ID,
   type UploadedScriptFile,
-  type UrlGeneratorRunOptions,
   type UrlGeneratorRunResult,
 } from "../scripts/urlGenerator/types";
 
@@ -24,7 +23,6 @@ export type WorkerRun<T> = {
 
 export function createUrlGeneratorWorkerRun(
   files: UploadedScriptFile[],
-  options: UrlGeneratorRunOptions,
 ): WorkerRun<UrlGeneratorRunResult> {
   const worker = new Worker(new URL("../workers/scriptRunner.worker.ts", import.meta.url), {
     type: "module",
@@ -65,7 +63,6 @@ export function createUrlGeneratorWorkerRun(
         type: "run",
         scriptId: URL_GENERATOR_SCRIPT_ID,
         files,
-        options,
       },
       files.map((file) => file.buffer),
     );

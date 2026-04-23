@@ -12,7 +12,6 @@ import type {
   OrderRecord,
   ProcessingIssue,
   UnmatchedOrderRow,
-  UrlGeneratorRunOptions,
   UrlOutputRow,
 } from "./types";
 
@@ -128,15 +127,16 @@ export function extractOrders(
     ORDER_COLUMNS,
     context,
   );
+  const orderRecords = records.map(({ values, sourceRowNumber }) => ({
+    purchase_order: values.purchase_order,
+    product: values.product,
+    base_url: values.base_url,
+    sourceRowNumber,
+  }));
 
   return {
-    records: records.map(({ values, sourceRowNumber }) => ({
-      purchase_order: values.purchase_order,
-      product: values.product,
-      base_url: values.base_url,
-      sourceRowNumber,
-    })),
-    issues,
+    records: orderRecords,
+    issues: [...issues, ...validateDuplicateOrders(orderRecords, context)],
     detectedTable,
   };
 }
@@ -159,6 +159,7 @@ export function extractEans(rows: string[][], context: FileContext): ExtractedEa
     issues: [
       ...issues,
       ...eanRecords.flatMap((record) => validateEan(record, context)),
+      ...validateDuplicateEans(eanRecords, context),
     ],
     detectedTable,
   };
@@ -167,46 +168,104 @@ export function extractEans(rows: string[][], context: FileContext): ExtractedEa
 export function buildUrls(
   orders: OrderRecord[],
   eans: EanRecord[],
-  options: UrlGeneratorRunOptions = { outputOrder: "sorted" },
 ): BuiltUrlOutput {
   const issues: ProcessingIssue[] = [];
+  const uniqueOrders: OrderRecord[] = [];
+  const seenOrders = new Set<string>();
   const eansByProduct = new Map<string, EanRecord[]>();
   const seenEans = new Set<string>();
-  let duplicateEanRows = 0;
+  const seenSkus = new Set<string>();
+
+  for (const order of orders) {
+    const orderKey = normalizeIdentifierKey(order.purchase_order);
+
+    if (seenOrders.has(orderKey)) {
+      issues.push({
+        severity: "error",
+        fileRole: "orders",
+        rowNumber: order.sourceRowNumber,
+        field: "purchase_order",
+        message: `Duplicate purchase order "${order.purchase_order}" skipped.`,
+      });
+      continue;
+    }
+
+    seenOrders.add(orderKey);
+    uniqueOrders.push(order);
+  }
 
   for (const eanRecord of eans) {
     const productKey = normalizeProductKey(eanRecord.product);
-    const eanKey = `${productKey}\u0000${eanRecord.ean}\u0000${eanRecord.sku}`;
+    const eanKey = normalizeIdentifierKey(eanRecord.ean);
+    const skuKey = normalizeIdentifierKey(eanRecord.sku);
+    let hasDuplicateIdentifier = false;
 
     if (seenEans.has(eanKey)) {
-      duplicateEanRows += 1;
+      hasDuplicateIdentifier = true;
+      issues.push({
+        severity: "error",
+        fileRole: "eans",
+        rowNumber: eanRecord.sourceRowNumber,
+        field: "ean",
+        message: `Duplicate EAN "${eanRecord.ean}" skipped.`,
+      });
+    }
+
+    if (skuKey && seenSkus.has(skuKey)) {
+      hasDuplicateIdentifier = true;
+      issues.push({
+        severity: "error",
+        fileRole: "eans",
+        rowNumber: eanRecord.sourceRowNumber,
+        field: "sku",
+        message: `Duplicate SKU "${eanRecord.sku}" skipped.`,
+      });
+    }
+
+    if (hasDuplicateIdentifier) {
       continue;
     }
 
     seenEans.add(eanKey);
+
+    if (skuKey) {
+      seenSkus.add(skuKey);
+    }
 
     const bucket = eansByProduct.get(productKey) ?? [];
     bucket.push(eanRecord);
     eansByProduct.set(productKey, bucket);
   }
 
-  if (duplicateEanRows > 0) {
-    issues.push({
-      severity: "info",
-      fileRole: "eans",
-      message: `${duplicateEanRows} duplicate EAN row${
-        duplicateEanRows === 1 ? "" : "s"
-      } skipped.`,
-    });
-  }
-
   const urls: UrlOutputRow[] = [];
   const unmatchedOrders: UnmatchedOrderRow[] = [];
   const unmatchedKeys = new Set<string>();
+  const invalidOrders = new Set<OrderRecord>();
+  const baseUrlsByOrder = new Map<OrderRecord, string>();
   let matchedOrderCount = 0;
 
-  for (const order of orders) {
+  for (const order of uniqueOrders) {
+    const baseUrlResult = parseBaseUrl(order);
+
+    if (!baseUrlResult.ok) {
+      invalidOrders.add(order);
+      issues.push(baseUrlResult.issue);
+      continue;
+    }
+
+    baseUrlsByOrder.set(order, baseUrlResult.baseUrl);
+    issues.push(...baseUrlResult.issues);
+  }
+
+  for (const order of uniqueOrders) {
     const matches = eansByProduct.get(normalizeProductKey(order.product));
+
+    if (invalidOrders.has(order)) {
+      if (matches && matches.length > 0) {
+        matchedOrderCount += 1;
+      }
+      continue;
+    }
 
     if (!matches || matches.length === 0) {
       const unmatchedKey = `${order.purchase_order}\u0000${order.product}\u0000${order.base_url}`;
@@ -223,19 +282,9 @@ export function buildUrls(
     }
 
     matchedOrderCount += 1;
-    const baseUrlResult = parseBaseUrl(order);
-
-    if (!baseUrlResult.ok) {
-      issues.push(baseUrlResult.issue);
-      continue;
-    }
-
-    if (baseUrlResult.issue) {
-      issues.push(baseUrlResult.issue);
-    }
+    const baseUrl = baseUrlsByOrder.get(order) ?? normalizeBaseUrl(order.base_url);
 
     for (const match of matches) {
-      const baseUrl = baseUrlResult.baseUrl;
       urls.push({
         order_row_number: order.sourceRowNumber,
         ean_row_number: match.sourceRowNumber,
@@ -244,15 +293,12 @@ export function buildUrls(
         base_url: baseUrl,
         ean: match.ean,
         sku: match.sku,
-        url: appendUrlPath(baseUrl, [
-          "01",
-          match.ean,
-          "10",
-          order.purchase_order,
-        ]),
+        url: formatGeneratedUrl(baseUrl, match.ean, order.purchase_order),
       });
     }
   }
+
+  const sortedUrls = sortUrlRows(urls);
 
   if (urls.length === 0) {
     issues.push({
@@ -265,11 +311,8 @@ export function buildUrls(
   }
 
   return {
-    urls: options.outputOrder === "input" ? urls : sortUrlRows(urls),
-    unmatchedOrders:
-      options.outputOrder === "input"
-        ? unmatchedOrders
-        : sortUnmatchedRows(unmatchedOrders),
+    urls: sortedUrls,
+    unmatchedOrders: sortUnmatchedRows(unmatchedOrders),
     issues,
   };
 }
@@ -287,6 +330,11 @@ function extractRecords<TKey extends string>(
   const issues = layout.issues.map((issue) => withContext(issue, context));
   const records: { values: Record<TKey, string>; sourceRowNumber: number }[] = [];
   const requiredSpecs = specs.filter((spec) => spec.required);
+  const missingRequiredColumns = new Set(
+    requiredSpecs
+      .filter((spec) => !layout.columns.has(spec.key))
+      .map((spec) => spec.key),
+  );
 
   for (let rowIndex = layout.dataStartIndex; rowIndex < rows.length; rowIndex += 1) {
     const row = rows[rowIndex] ?? [];
@@ -296,7 +344,7 @@ function extractRecords<TKey extends string>(
     }
 
     const values = {} as Record<TKey, string>;
-    let hasMissingRequired = false;
+    let hasMissingRequired = missingRequiredColumns.size > 0;
 
     for (const spec of specs) {
       const column = layout.columns.get(spec.key);
@@ -305,15 +353,19 @@ function extractRecords<TKey extends string>(
     }
 
     for (const spec of requiredSpecs) {
+      if (missingRequiredColumns.has(spec.key)) {
+        continue;
+      }
+
       if (isMissingText(values[spec.key])) {
         hasMissingRequired = true;
         issues.push(
           withContext(
             {
-              severity: "warning",
+              severity: "error",
               rowNumber: rowIndex + 1,
               field: spec.key,
-              message: `Skipped row because "${spec.label}" is empty.`,
+              message: `Mandatory field "${spec.label}" is empty.`,
             },
             context,
           ),
@@ -369,6 +421,10 @@ function normalizeBaseUrl(url: string): string {
   return normalizeDataText(url).replace(/\/+$/g, "");
 }
 
+function normalizeIdentifierKey(value: string): string {
+  return normalizeDataText(value).toLowerCase();
+}
+
 function validateEan(record: EanRecord, context: FileContext): ProcessingIssue[] {
   const issues: ProcessingIssue[] = [];
 
@@ -405,78 +461,245 @@ function validateEan(record: EanRecord, context: FileContext): ProcessingIssue[]
   return issues;
 }
 
+function validateDuplicateOrders(
+  records: OrderRecord[],
+  context: FileContext,
+): ProcessingIssue[] {
+  const seenOrders = new Map<string, OrderRecord>();
+  const issues: ProcessingIssue[] = [];
+
+  for (const record of records) {
+    const key = normalizeIdentifierKey(record.purchase_order);
+    const firstRecord = seenOrders.get(key);
+
+    if (firstRecord) {
+      issues.push(
+        withContext(
+          {
+            severity: "error",
+            rowNumber: record.sourceRowNumber,
+            field: "purchase_order",
+            message: `Duplicate purchase order "${
+              record.purchase_order
+            }" also appears on row ${firstRecord.sourceRowNumber}.`,
+          },
+          context,
+        ),
+      );
+      continue;
+    }
+
+    seenOrders.set(key, record);
+  }
+
+  return issues;
+}
+
+function validateDuplicateEans(
+  records: EanRecord[],
+  context: FileContext,
+): ProcessingIssue[] {
+  const seenEans = new Map<string, EanRecord>();
+  const seenSkus = new Map<string, EanRecord>();
+  const issues: ProcessingIssue[] = [];
+
+  for (const record of records) {
+    const eanKey = normalizeIdentifierKey(record.ean);
+    const firstEanRecord = seenEans.get(eanKey);
+
+    if (firstEanRecord) {
+      issues.push(
+        withContext(
+          {
+            severity: "error",
+            rowNumber: record.sourceRowNumber,
+            field: "ean",
+            message: `Duplicate EAN "${record.ean}" also appears on row ${firstEanRecord.sourceRowNumber}.`,
+          },
+          context,
+        ),
+      );
+    } else {
+      seenEans.set(eanKey, record);
+    }
+
+    const skuKey = normalizeIdentifierKey(record.sku);
+
+    if (!skuKey) {
+      continue;
+    }
+
+    const firstSkuRecord = seenSkus.get(skuKey);
+
+    if (firstSkuRecord) {
+      issues.push(
+        withContext(
+          {
+            severity: "error",
+            rowNumber: record.sourceRowNumber,
+            field: "sku",
+            message: `Duplicate SKU "${record.sku}" also appears on row ${firstSkuRecord.sourceRowNumber}.`,
+          },
+          context,
+        ),
+      );
+      continue;
+    }
+
+    seenSkus.set(skuKey, record);
+  }
+
+  return issues;
+}
+
 function parseBaseUrl(order: OrderRecord):
-  | { ok: true; baseUrl: string; issue?: ProcessingIssue }
+  | { ok: true; baseUrl: string; issues: ProcessingIssue[] }
   | { ok: false; issue: ProcessingIssue } {
   const rawBaseUrl = normalizeDataText(order.base_url);
 
   try {
     const parsed = new URL(rawBaseUrl);
 
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    if (parsed.protocol !== "https:") {
       return {
         ok: false,
         issue: {
-          severity: "warning",
+          severity: "error",
           fileRole: "orders",
           rowNumber: order.sourceRowNumber,
           field: "base_url",
-          message: "Skipped order because Base URL must start with http:// or https://.",
+          message: "Base URL must start with https://.",
         },
       };
+    }
+
+    if (parsed.username || parsed.password) {
+      return {
+        ok: false,
+        issue: {
+          severity: "error",
+          fileRole: "orders",
+          rowNumber: order.sourceRowNumber,
+          field: "base_url",
+          message: "Base URL must not include a username or password.",
+        },
+      };
+    }
+
+    if (!isLikelyDomainName(parsed.hostname)) {
+      return {
+        ok: false,
+        issue: {
+          severity: "error",
+          fileRole: "orders",
+          rowNumber: order.sourceRowNumber,
+          field: "base_url",
+          message: "Base URL must use a domain like example.com.",
+        },
+      };
+    }
+
+    if (parsed.pathname !== "/" || parsed.search || parsed.hash) {
+      return {
+        ok: false,
+        issue: {
+          severity: "error",
+          fileRole: "orders",
+          rowNumber: order.sourceRowNumber,
+          field: "base_url",
+          message:
+            "Base URL must be an https root domain with only an optional trailing slash.",
+        },
+      };
+    }
+
+    const issues: ProcessingIssue[] = [];
+
+    if (parsed.hostname.toLowerCase().startsWith("www.")) {
+      issues.push({
+        severity: "warning",
+        fileRole: "orders",
+        rowNumber: order.sourceRowNumber,
+        field: "base_url",
+        message: "Base URL includes www. Prefer the domain without www.",
+      });
     }
 
     return {
       ok: true,
       baseUrl: serializeBaseUrl(parsed),
-      issue:
-        parsed.search || parsed.hash
-          ? {
-              severity: "info",
-              fileRole: "orders",
-              rowNumber: order.sourceRowNumber,
-              field: "base_url",
-              message:
-                "Base URL includes a query string or hash. Generated path segments are appended before it.",
-            }
-          : undefined,
+      issues,
     };
   } catch {
     return {
       ok: false,
       issue: {
-        severity: "warning",
+        severity: "error",
         fileRole: "orders",
         rowNumber: order.sourceRowNumber,
         field: "base_url",
-        message: "Skipped order because Base URL is not a valid absolute URL.",
+        message: "Base URL must be a valid URL like https://example.com.",
       },
     };
   }
 }
 
 function serializeBaseUrl(url: URL): string {
-  const path = url.pathname === "/" ? "" : url.pathname.replace(/\/+$/g, "");
-  return `${url.origin}${path}${url.search}${url.hash}`;
+  return url.origin;
 }
 
-function appendUrlPath(baseUrl: string, segments: string[]): string {
-  const parsed = new URL(baseUrl);
-  const prefix =
-    parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/g, "");
-  parsed.pathname = `${prefix}/${segments
-    .map((segment) => encodeURIComponent(segment))
-    .join("/")}`;
-  return parsed.toString();
+function isLikelyDomainName(hostname: string): boolean {
+  const labels = hostname.toLowerCase().split(".");
+
+  if (labels.length < 2) {
+    return false;
+  }
+
+  return (
+    labels.every(isValidDomainLabel) &&
+    isValidTopLevelDomain(labels[labels.length - 1])
+  );
+}
+
+function isValidDomainLabel(label: string | undefined): boolean {
+  return Boolean(
+    label &&
+      label.length <= 63 &&
+      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label),
+  );
+}
+
+function isValidTopLevelDomain(label: string | undefined): boolean {
+  return Boolean(
+    label &&
+      (/^[a-z]{2,63}$/.test(label) ||
+        /^xn--[a-z0-9-]{2,59}$/.test(label)),
+  );
+}
+
+function formatGeneratedUrl(
+  baseUrl: string,
+  ean: string,
+  purchaseOrder: string,
+): string {
+  return `${baseUrl}/01/${encodeUrlPathSegment(ean)}/10/${encodeUrlPathSegment(
+    purchaseOrder,
+  )}`;
+}
+
+function encodeUrlPathSegment(value: string): string {
+  return encodeURIComponent(value).replace(/[!'()*]/g, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }
 
 function sortUrlRows(rows: UrlOutputRow[]): UrlOutputRow[] {
   return [...rows].sort((a, b) =>
     [
-      a.product.localeCompare(b.product, undefined, { numeric: true }),
-      a.purchase_order.localeCompare(b.purchase_order, undefined, {
-        numeric: true,
-      }),
+      compareText(a.purchase_order, b.purchase_order),
+      compareText(normalizeProductKey(a.product), normalizeProductKey(b.product)),
+      compareText(a.product, b.product),
+      compareText(a.sku, b.sku),
       a.ean.localeCompare(b.ean, undefined, { numeric: true }),
     ].find((result) => result !== 0) ?? 0,
   );
@@ -485,10 +708,17 @@ function sortUrlRows(rows: UrlOutputRow[]): UrlOutputRow[] {
 function sortUnmatchedRows(rows: UnmatchedOrderRow[]): UnmatchedOrderRow[] {
   return [...rows].sort((a, b) =>
     [
-      a.product.localeCompare(b.product, undefined, { numeric: true }),
-      a.purchase_order.localeCompare(b.purchase_order, undefined, {
-        numeric: true,
-      }),
+      compareText(a.purchase_order, b.purchase_order),
+      compareText(normalizeProductKey(a.product), normalizeProductKey(b.product)),
+      compareText(a.product, b.product),
+      compareText(a.base_url, b.base_url),
     ].find((result) => result !== 0) ?? 0,
   );
+}
+
+function compareText(a: string, b: string): number {
+  return a.localeCompare(b, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
