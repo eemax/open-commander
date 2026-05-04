@@ -42,44 +42,75 @@ export type BuiltUrlOutput = {
   issues: ProcessingIssue[];
 };
 
+export const PURCHASE_ORDER_ALIASES = [
+  "purchase_order",
+  "purchase order",
+  "purchase order number",
+  "po",
+  "po number",
+  "order",
+  "order number",
+  "batch",
+  "batch number",
+];
+
+export const PRODUCT_ALIASES = [
+  "product",
+  "product code",
+  "product number",
+  "item",
+  "item code",
+  "item number",
+  "article",
+  "article number",
+  "style",
+  "style number",
+];
+
+export const BASE_URL_ALIASES = [
+  "base_url",
+  "base url",
+  "url",
+  "link",
+  "web link",
+  "base link",
+  "website",
+];
+
+export const EAN_ALIASES = [
+  "ean",
+  "eans",
+  "barcode",
+  "bar code",
+  "gtin",
+  "gtins",
+  "upc",
+];
+
+export const SKU_ALIASES = [
+  "sku",
+  "variant sku",
+  "size sku",
+  "internal sku",
+];
+
 const ORDER_COLUMNS: ColumnSpec<OrderField>[] = [
   {
     key: "purchase_order",
     label: "Purchase order",
-    aliases: [
-      "purchase_order",
-      "purchase order",
-      "purchase order number",
-      "po",
-      "po number",
-      "order",
-      "order number",
-    ],
-    fallbackIndex: 0,
+    aliases: PURCHASE_ORDER_ALIASES,
     required: true,
   },
   {
     key: "product",
     label: "Product",
-    aliases: [
-      "product",
-      "product code",
-      "product_code",
-      "item",
-      "item code",
-      "article",
-      "article number",
-      "style",
-      "sku",
-    ],
-    fallbackIndex: 1,
+    aliases: PRODUCT_ALIASES,
     required: true,
   },
   {
     key: "base_url",
     label: "Base URL",
-    aliases: ["base_url", "base url", "url", "link", "web link", "base link"],
-    fallbackIndex: 2,
+    aliases: BASE_URL_ALIASES,
     required: true,
   },
 ];
@@ -88,32 +119,19 @@ const EAN_COLUMNS: ColumnSpec<EanField>[] = [
   {
     key: "product",
     label: "Product",
-    aliases: [
-      "product",
-      "product code",
-      "product_code",
-      "item",
-      "item code",
-      "article",
-      "article number",
-      "style",
-      "sku",
-    ],
-    fallbackIndex: 0,
+    aliases: PRODUCT_ALIASES,
     required: true,
   },
   {
     key: "ean",
     label: "EAN",
-    aliases: ["ean", "eans", "barcode", "bar code", "gtin", "gtins", "upc"],
-    fallbackIndex: 1,
+    aliases: EAN_ALIASES,
     required: true,
   },
   {
     key: "sku",
     label: "SKU",
-    aliases: ["sku", "variant sku", "size sku", "internal sku"],
-    fallbackIndex: 2,
+    aliases: SKU_ALIASES,
     required: false,
   },
 ];

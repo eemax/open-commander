@@ -4,7 +4,6 @@ export type ColumnSpec<TKey extends string> = {
   key: TKey;
   label: string;
   aliases: string[];
-  fallbackIndex: number;
   required: boolean;
 };
 
@@ -78,11 +77,10 @@ export function detectTableLayout<TKey extends string>(
   rows: string[][],
   specs: ColumnSpec<TKey>[],
 ): TableLayout<TKey> {
-  const maxColumns = Math.max(0, ...rows.map((row) => row.length));
   const header = findLikelyHeaderRow(rows, specs);
 
   if (header === null) {
-    return fallbackLayout(specs, maxColumns);
+    return missingHeaderLayout(specs);
   }
 
   const assigned = assignColumnsFromHeader(rows[header] ?? [], specs);
@@ -117,10 +115,17 @@ function findLikelyHeaderRow<TKey extends string>(
 
   for (let rowIndex = 0; rowIndex < scanLimit; rowIndex += 1) {
     const row = rows[rowIndex] ?? [];
-    const candidates = requiredSpecs.map((spec) =>
+    const requiredCandidates = requiredSpecs.map((spec) =>
       bestHeaderColumnForSpec(row, spec, new Set()),
     );
-    const matchedRequired = candidates.filter(
+    const optionalCandidates = specs
+      .filter((spec) => !spec.required)
+      .map((spec) => bestHeaderColumnForSpec(row, spec, new Set()));
+    const candidates = [...requiredCandidates, ...optionalCandidates];
+    const matchedRequired = requiredCandidates.filter(
+      (candidate) => candidate && candidate.score >= 2,
+    ).length;
+    const matchedColumns = candidates.filter(
       (candidate) => candidate && candidate.score >= 2,
     ).length;
     const score = candidates.reduce(
@@ -129,7 +134,8 @@ function findLikelyHeaderRow<TKey extends string>(
     );
 
     if (
-      matchedRequired >= Math.min(2, requiredSpecs.length) &&
+      matchedRequired >= 1 &&
+      matchedColumns >= Math.min(2, specs.length) &&
       (!best || score > best.score)
     ) {
       best = { rowIndex, score, matchedRequired };
@@ -157,6 +163,7 @@ function assignColumnsFromHeader<TKey extends string>(
       assigned.set(spec.key, {
         key: spec.key,
         label: spec.label,
+        headerText: normalizeDataText(row[best.columnIndex] ?? ""),
         columnIndex: best.columnIndex,
         columnName: excelColumnName(best.columnIndex),
         match: "header",
@@ -170,30 +177,17 @@ function assignColumnsFromHeader<TKey extends string>(
   return assigned;
 }
 
-function fallbackLayout<TKey extends string>(
+function missingHeaderLayout<TKey extends string>(
   specs: ColumnSpec<TKey>[],
-  maxColumns: number,
 ): TableLayout<TKey> {
-  const assigned = new Map<TKey, DetectedColumn>();
   const issues: ProcessingIssue[] = [
     {
-      severity: "info",
-      message: "No header row was detected, so columns were read by position.",
+      severity: "error",
+      message: "No recognizable header row was detected.",
     },
   ];
 
   for (const spec of specs) {
-    if (spec.fallbackIndex >= 0 && spec.fallbackIndex < maxColumns) {
-      assigned.set(spec.key, {
-        key: spec.key,
-        label: spec.label,
-        columnIndex: spec.fallbackIndex,
-        columnName: excelColumnName(spec.fallbackIndex),
-        match: "fallback",
-      });
-      continue;
-    }
-
     if (spec.required) {
       issues.push({
         severity: "error",
@@ -206,7 +200,7 @@ function fallbackLayout<TKey extends string>(
   return {
     headerRowIndex: null,
     dataStartIndex: 0,
-    columns: assigned,
+    columns: new Map<TKey, DetectedColumn>(),
     issues,
   };
 }

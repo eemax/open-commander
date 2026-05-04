@@ -30,6 +30,7 @@ describe("URL generator workbook runner", () => {
     const outputWorkbook = new ExcelJS.Workbook();
     await outputWorkbook.xlsx.load(result.outputBuffer);
     const urlsSheet = outputWorkbook.getWorksheet("urls");
+    const summaryRows = readWorksheetRows(outputWorkbook.getWorksheet("summary"));
 
     expect(result.outputFileName).toBe("spring_urls.xlsx");
     expect(result.stats.urlsCreated).toBe(1);
@@ -50,6 +51,44 @@ describe("URL generator workbook runner", () => {
     expect(urlsSheet?.getCell("F2").value).toBe(
       "https://example.test/01/1234567890123/10/PO%20100",
     );
+    expect(summaryRows[0]).toEqual(["section", "item", "value", "detail"]);
+    expect(summaryRows).toEqual(
+      expect.arrayContaining([
+        [
+          "Run overview",
+          "URL format",
+          "{base_url}/01/{ean}/10/{purchase_order}",
+          expect.stringContaining("URL path encoded"),
+        ],
+        [
+          "Results",
+          "URLs created",
+          1,
+          expect.stringContaining("urls sheet"),
+        ],
+        [
+          "Source tables",
+          "Orders workbook",
+          "spring_orders.xlsx",
+          expect.stringContaining("Purchase Order -> purchase_order"),
+        ],
+        [
+          "Detected headers",
+          "Orders column A",
+          "Purchase Order",
+          "Resolved to purchase_order (Purchase order).",
+        ],
+        [
+          "Detected headers",
+          "EANs column C",
+          "SKU",
+          "Resolved to sku (SKU).",
+        ],
+      ]),
+    );
+    expect(summaryRows.map((row) => row[0])).not.toContain("Accepted headers");
+    expect(summaryRows.map((row) => row[0])).not.toContain("Validation");
+    expect(summaryRows.map((row) => row[0])).not.toContain("Input issues");
   });
 
   it("preserves simple zero-padded numeric identifier formats", async () => {
@@ -219,6 +258,21 @@ describe("URL generator workbook runner", () => {
         }),
       ]),
     );
+
+    const outputWorkbook = new ExcelJS.Workbook();
+    await outputWorkbook.xlsx.load(result.outputBuffer);
+    const summaryRows = readWorksheetRows(outputWorkbook.getWorksheet("summary"));
+
+    expect(summaryRows).toEqual(
+      expect.arrayContaining([
+        [
+          "Input issues",
+          "Warnings and non-fatal issues",
+          1,
+          "See the input_issues sheet for row-level details.",
+        ],
+      ]),
+    );
   });
 });
 
@@ -250,4 +304,16 @@ async function createWorkbookBuffer(rows: CellInput[][]): Promise<ArrayBuffer> {
     value.byteOffset,
     value.byteOffset + value.byteLength,
   ) as ArrayBuffer;
+}
+
+function readWorksheetRows(worksheet: ExcelJS.Worksheet | undefined): unknown[][] {
+  expect(worksheet).toBeDefined();
+
+  const rows: unknown[][] = [];
+
+  worksheet?.eachRow((row) => {
+    rows.push((row.values as unknown[]).slice(1));
+  });
+
+  return rows;
 }

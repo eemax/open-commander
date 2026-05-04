@@ -692,7 +692,7 @@ function ResultView({ result }: { result: UrlGeneratorRunResult }) {
             <span>
               {table.headerRowNumber
                 ? `Header row ${table.headerRowNumber}`
-                : "Position-based columns"}
+                : "No matching header row"}
             </span>
             <small>
               {table.columns
@@ -855,7 +855,7 @@ function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
 
   if (hasMissingRequiredIssue) {
     steps.push(
-      "Orders need purchase_order, product, and base_url. EANs need product, ean, and sku.",
+      "Orders need purchase_order, product, and base_url. EANs need product and ean; sku is optional.",
     );
   }
 

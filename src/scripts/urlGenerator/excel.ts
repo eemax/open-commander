@@ -2,7 +2,11 @@ import ExcelJS from "exceljs";
 
 import { deriveOutputFileName } from "./fileRoles";
 import { normalizeDataText } from "./headers";
-import { buildUrls, extractEans, extractOrders } from "./transform";
+import {
+  buildUrls,
+  extractEans,
+  extractOrders,
+} from "./transform";
 import {
   XLSX_MIME_TYPE,
   URL_GENERATOR_SCRIPT_ID,
@@ -68,6 +72,8 @@ export async function runUrlGenerator(
     unmatchedOrders: built.unmatchedOrders,
     issues,
     detectedTables: [orders.detectedTable, eans.detectedTable],
+    ordersRead: orders.records.length,
+    eansRead: eans.records.length,
   });
 
   return {
@@ -254,6 +260,8 @@ async function writeOutputWorkbook(input: {
   unmatchedOrders: UnmatchedOrderRow[];
   issues: ProcessingIssue[];
   detectedTables: DetectedTable[];
+  ordersRead: number;
+  eansRead: number;
 }): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Open Commander";
@@ -298,22 +306,8 @@ async function writeOutputWorkbook(input: {
     })));
   }
 
-  addRowsSheet(workbook, "summary", ["item", "value"], [
-    { item: "URLs created", value: input.urls.length },
-    { item: "Unmatched orders", value: input.unmatchedOrders.length },
-    { item: "Issues", value: input.issues.length },
-    {
-      item: "Orders columns",
-      value: formatDetectedColumns(
-        input.detectedTables.find((table) => table.fileRole === "orders"),
-      ),
-    },
-    {
-      item: "EAN columns",
-      value: formatDetectedColumns(
-        input.detectedTables.find((table) => table.fileRole === "eans"),
-      ),
-    },
+  addRowsSheet(workbook, "summary", ["section", "item", "value", "detail"], [
+    ...buildSummaryRows(input),
   ]);
 
   const written = await workbook.xlsx.writeBuffer();
@@ -354,24 +348,124 @@ function addRowsSheet<T extends Record<string, unknown>>(
       header.length,
       ...rows.map((row) => String(row[header] ?? "").length),
     );
-    column.width = Math.min(Math.max(longest + 2, 12), header === "url" ? 80 : 32);
+    const maxWidth = ["url", "value", "detail"].includes(header) ? 90 : 32;
+    column.width = Math.min(Math.max(longest + 2, 12), maxWidth);
+    column.alignment = { vertical: "top", wrapText: true };
   });
 }
 
-function formatDetectedColumns(table?: DetectedTable): string {
+type SummaryInput = {
+  urls: UrlOutputRow[];
+  unmatchedOrders: UnmatchedOrderRow[];
+  issues: ProcessingIssue[];
+  detectedTables: DetectedTable[];
+  ordersRead: number;
+  eansRead: number;
+};
+
+type SummaryRow = {
+  section: string;
+  item: string;
+  value: string | number;
+  detail?: string;
+};
+
+function buildSummaryRows(input: SummaryInput): SummaryRow[] {
+  const ordersTable = input.detectedTables.find(
+    (table) => table.fileRole === "orders",
+  );
+  const eansTable = input.detectedTables.find((table) => table.fileRole === "eans");
+  const rows: SummaryRow[] = [
+    {
+      section: "Run overview",
+      item: "URL format",
+      value: "{base_url}/01/{ean}/10/{purchase_order}",
+      detail: "EAN and purchase order values are URL path encoded.",
+    },
+    {
+      section: "Results",
+      item: "URLs created",
+      value: input.urls.length,
+      detail: "Rows written to the urls sheet.",
+    },
+    {
+      section: "Results",
+      item: "Orders read",
+      value: input.ordersRead,
+      detail: "Usable order rows after header detection, required-cell checks, and duplicate order validation.",
+    },
+    {
+      section: "Results",
+      item: "EAN rows read",
+      value: input.eansRead,
+      detail: "Usable EAN rows after header detection, required-cell checks, and duplicate EAN/SKU validation.",
+    },
+    {
+      section: "Results",
+      item: "Unmatched orders",
+      value: input.unmatchedOrders.length,
+      detail: "Unique order/product/base URL combinations with no matching EAN product.",
+    },
+    {
+      section: "Source tables",
+      item: "Orders workbook",
+      value: ordersTable?.fileName ?? "",
+      detail: formatDetectedTable(ordersTable),
+    },
+    {
+      section: "Source tables",
+      item: "EAN workbook",
+      value: eansTable?.fileName ?? "",
+      detail: formatDetectedTable(eansTable),
+    },
+  ];
+
+  rows.push(...formatDetectedHeaderRows("Orders", ordersTable));
+  rows.push(...formatDetectedHeaderRows("EANs", eansTable));
+
+  if (input.issues.length > 0) {
+    rows.push({
+      section: "Input issues",
+      item: "Warnings and non-fatal issues",
+      value: input.issues.length,
+      detail: "See the input_issues sheet for row-level details.",
+    });
+  }
+
+  return rows;
+}
+
+function formatDetectedTable(table?: DetectedTable): string {
   if (!table) {
     return "";
   }
 
   const header =
     table.headerRowNumber === null
-      ? "no header row"
+      ? "no matching header row"
       : `header row ${table.headerRowNumber}`;
+  const dataStart = `data starts row ${table.dataStartRowNumber}`;
   const columns = table.columns
-    .map((column) => `${column.label}: ${column.columnName} (${column.match})`)
+    .map((column) => `${column.headerText} -> ${column.key}`)
     .join("; ");
 
-  return `${table.fileName}, ${table.sheetName}, ${header}; ${columns}`;
+  return `${table.sheetName}; ${header}; ${dataStart}; ${columns || "no columns matched"}`;
+}
+
+function formatDetectedHeaderRows(
+  role: "Orders" | "EANs",
+  table?: DetectedTable,
+): SummaryRow[] {
+  if (!table) {
+    return [];
+  }
+
+  return table.columns.map((column) => ({
+    section: "Detected headers",
+    item: `${role} column ${column.columnName}`,
+    value: column.headerText,
+    detail: `Resolved to ${column.key} (${column.label}).`,
+  }));
 }
 
 function toArrayBuffer(value: ArrayBuffer | Uint8Array): ArrayBuffer {

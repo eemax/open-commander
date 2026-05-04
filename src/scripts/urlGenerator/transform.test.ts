@@ -23,7 +23,7 @@ describe("URL generator transform", () => {
     const orders = extractOrders(
       [
         ["Exported from shop system", "", ""],
-        ["Purchase Order #", "PRODUCT-CODE", " Base URL "],
+        ["Batch-Number", "STYLE_NUMBER", " Website "],
         ["PO 1", "ABC-123", "https://example.test/"],
         ["PO/2", "missing", "https://example.test"],
       ],
@@ -31,7 +31,7 @@ describe("URL generator transform", () => {
     );
     const eans = extractEans(
       [
-        ["SKU", "Barcode", "Variant SKU"],
+        ["style-number", "Barcode", "Variant SKU"],
         ["abc 123", "0001112223334", "S-1"],
       ],
       eansContext,
@@ -67,7 +67,33 @@ describe("URL generator transform", () => {
     ]);
   });
 
-  it("uses positional columns without dropping the first data row when no header exists", () => {
+  it("does not accept SKU as a product header", () => {
+    const eans = extractEans(
+      [
+        ["SKU", "EAN", "Variant SKU"],
+        ["ABC-123", "0001112223334", "S-1"],
+      ],
+      eansContext,
+    );
+
+    expect(eans.records).toHaveLength(0);
+    expect(eans.detectedTable.headerRowNumber).toBe(1);
+    expect(eans.detectedTable.columns.map((column) => column.key)).toEqual([
+      "ean",
+      "sku",
+    ]);
+    expect(eans.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          field: "product",
+          message: 'Could not find required column "Product".',
+        }),
+      ]),
+    );
+  });
+
+  it("fails when no recognizable header row exists", () => {
     const orders = extractOrders(
       [
         ["1001", "P-100", "https://example.test/"],
@@ -75,23 +101,33 @@ describe("URL generator transform", () => {
       ],
       ordersContext,
     );
-    const eans = extractEans(
-      [
-        ["P100", "789"],
-        ["P-200", "456", "SKU-456"],
-      ],
-      eansContext,
-    );
-
-    const output = buildUrls(orders.records, eans.records);
 
     expect(orders.detectedTable.headerRowNumber).toBeNull();
-    expect(orders.records).toHaveLength(2);
-    expect(output.urls.map((row) => row.url)).toEqual([
-      "https://example.test/01/789/10/1001",
-      "https://example.test/01/456/10/1002",
-    ]);
-    expect(orders.issues.some((issue) => issue.severity === "info")).toBe(true);
+    expect(orders.detectedTable.columns).toEqual([]);
+    expect(orders.records).toHaveLength(0);
+    expect(orders.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          message: "No recognizable header row was detected.",
+        }),
+        expect.objectContaining({
+          severity: "error",
+          field: "purchase_order",
+          message: 'Could not find required column "Purchase order".',
+        }),
+        expect.objectContaining({
+          severity: "error",
+          field: "product",
+          message: 'Could not find required column "Product".',
+        }),
+        expect.objectContaining({
+          severity: "error",
+          field: "base_url",
+          message: 'Could not find required column "Base URL".',
+        }),
+      ]),
+    );
   });
 
   it("marks mandatory empty cells as errors", () => {
@@ -209,7 +245,7 @@ describe("URL generator transform", () => {
     );
   });
 
-  it("does not silently use positional fallback columns after detecting a header row", () => {
+  it("does not silently read missing required columns from data rows", () => {
     const orders = extractOrders(
       [
         ["Purchase Order", "Product", "Notes"],

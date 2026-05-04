@@ -26,9 +26,10 @@ export type UploadedScriptFile = {
 export type DetectedColumn = {
   key: string;
   label: string;
+  headerText: string;
   columnIndex: number;
   columnName: string;
-  match: "header" | "fallback";
+  match: "header";
 };
 
 export type DetectedTable = {
