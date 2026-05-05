@@ -48,14 +48,19 @@ self.onmessage = async (event: MessageEvent<RunMessage>) => {
         : {
             type: "error",
             kind: "runtime",
-            message:
-              error instanceof Error
-                ? error.message
-                : "The workbook could not be processed.",
+            message: formatUnknownError(error),
           };
 
     self.postMessage(response);
   }
 };
+
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+
+  return "The workbook could not be processed.";
+}
 
 export {};

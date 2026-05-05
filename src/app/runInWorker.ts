@@ -39,9 +39,18 @@ export class WorkerRunError extends Error {
 export function createUrlGeneratorWorkerRun(
   files: UploadedScriptFile[],
 ): WorkerRun<UrlGeneratorRunResult> {
-  const worker = new Worker(new URL("../workers/scriptRunner.worker.ts", import.meta.url), {
-    type: "module",
-  });
+  let worker: Worker;
+
+  try {
+    worker = new Worker(new URL("../workers/scriptRunner.worker.ts", import.meta.url), {
+      type: "module",
+    });
+  } catch (error) {
+    return rejectedWorkerRun(
+      new Error(`The workbook worker could not start. ${formatUnknownError(error)}`),
+    );
+  }
+
   let settled = false;
   let rejectRun: (reason?: unknown) => void = () => {};
 
@@ -70,17 +79,43 @@ export function createUrlGeneratorWorkerRun(
 
       settled = true;
       worker.terminate();
-      reject(new Error(event.message || "The worker stopped unexpectedly."));
+      reject(new Error(formatWorkerErrorEvent(event)));
     };
 
-    worker.postMessage(
-      {
-        type: "run",
-        scriptId: URL_GENERATOR_SCRIPT_ID,
-        files,
-      },
-      files.map((file) => file.buffer),
-    );
+    worker.onmessageerror = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      worker.terminate();
+      reject(
+        new Error(
+          "The workbook worker returned a response this browser could not read.",
+        ),
+      );
+    };
+
+    try {
+      worker.postMessage(
+        {
+          type: "run",
+          scriptId: URL_GENERATOR_SCRIPT_ID,
+          files,
+        },
+        files.map((file) => file.buffer),
+      );
+    } catch (error) {
+      settled = true;
+      worker.terminate();
+      reject(
+        new Error(
+          `The workbook worker could not receive the files. ${formatUnknownError(
+            error,
+          )}`,
+        ),
+      );
+    }
   });
 
   return {
@@ -95,4 +130,31 @@ export function createUrlGeneratorWorkerRun(
       rejectRun(new DOMException("Run canceled.", "AbortError"));
     },
   };
+}
+
+function rejectedWorkerRun<T>(error: Error): WorkerRun<T> {
+  return {
+    promise: Promise.reject(error),
+    cancel: () => {},
+  };
+}
+
+function formatWorkerErrorEvent(event: ErrorEvent): string {
+  const details = [
+    event.message || "The worker stopped unexpectedly.",
+    event.filename ? `File: ${event.filename}` : "",
+    event.lineno ? `Line: ${event.lineno}` : "",
+    event.colno ? `Column: ${event.colno}` : "",
+    event.error ? formatUnknownError(event.error) : "",
+  ].filter(Boolean);
+
+  return details.join(" ");
+}
+
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+
+  return "Unknown error.";
 }

@@ -20,6 +20,8 @@ import {
   type WorkerRun,
 } from "./runInWorker";
 import { downloadArrayBuffer } from "../lib/download";
+import { readFileAsArrayBuffer } from "../lib/file";
+import { createLocalId } from "../lib/id";
 import { scripts, type ScriptDefinition } from "../scripts/registry";
 import {
   detectRoleFromFileName,
@@ -136,7 +138,7 @@ export function App() {
     for (const file of incoming) {
       if (!isXlsxFileName(file.name)) {
         nextNotices.push({
-          id: crypto.randomUUID(),
+          id: createLocalId(),
           message: `${file.name} is not an .xlsx file.`,
         });
         continue;
@@ -144,7 +146,7 @@ export function App() {
 
       if (file.size > MAX_FILE_SIZE_BYTES) {
         nextNotices.push({
-          id: crypto.randomUUID(),
+          id: createLocalId(),
           message: `${file.name} is ${formatBytes(file.size)}. The limit is ${formatBytes(
             MAX_FILE_SIZE_BYTES,
           )}.`,
@@ -153,7 +155,7 @@ export function App() {
       }
 
       accepted.push({
-        id: crypto.randomUUID(),
+        id: createLocalId(),
         file,
         detectedRole: detectRoleFromFileName(file.name).role,
       });
@@ -210,8 +212,8 @@ export function App() {
       runVersion = runVersionRef.current + 1;
       runVersionRef.current = runVersion;
       const [ordersBuffer, eansBuffer] = await Promise.all([
-        selectedFiles.orders.file.arrayBuffer(),
-        selectedFiles.eans.file.arrayBuffer(),
+        readFileAsArrayBuffer(selectedFiles.orders.file),
+        readFileAsArrayBuffer(selectedFiles.eans.file),
       ]);
 
       if (runVersionRef.current !== runVersion) {
