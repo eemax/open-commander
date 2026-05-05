@@ -863,7 +863,7 @@ function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
 
   if (hasBaseUrlIssue) {
     steps.push(
-      "Base URL values must be https root domains like https://example.com; remove paths such as /product, query strings, and http:// values.",
+      "Base URL values must be https root domains like https://example.com; replace template placeholders before generating and remove paths such as /product, query strings, and http:// values.",
     );
   }
 

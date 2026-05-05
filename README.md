@@ -223,7 +223,7 @@ The main URL format is:
 ```
 
 The script trims trailing slashes from `base_url` and URL-encodes the EAN and purchase order path segments.
-`base_url` values must be valid absolute `http://` or `https://` URLs. If a base URL includes a query string or hash, generated path segments are appended before it and the run reports an informational issue.
+`base_url` values must be valid `https://` root domains, such as `https://example.com`. Template placeholder domains such as `example.com` are rejected in uploaded data so they are not accidentally reused in output.
 
 The `urls` sheet includes `order_row_number` and `ean_row_number` columns so output rows can be traced back to the source workbooks. `unmatched_orders` includes `order_row_number`.
 

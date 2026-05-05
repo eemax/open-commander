@@ -617,6 +617,19 @@ function parseBaseUrl(order: OrderRecord):
       };
     }
 
+    if (isExampleDotComPlaceholder(parsed.hostname)) {
+      return {
+        ok: false,
+        issue: {
+          severity: "error",
+          fileRole: "orders",
+          rowNumber: order.sourceRowNumber,
+          field: "base_url",
+          message: "Base URL cannot use the template placeholder example.com.",
+        },
+      };
+    }
+
     if (parsed.pathname !== "/" || parsed.search || parsed.hash) {
       return {
         ok: false,
@@ -631,22 +644,23 @@ function parseBaseUrl(order: OrderRecord):
       };
     }
 
-    const issues: ProcessingIssue[] = [];
-
     if (parsed.hostname.toLowerCase().startsWith("www.")) {
-      issues.push({
-        severity: "warning",
-        fileRole: "orders",
-        rowNumber: order.sourceRowNumber,
-        field: "base_url",
-        message: "Base URL includes www. Prefer the domain without www.",
-      });
+      return {
+        ok: false,
+        issue: {
+          severity: "error",
+          fileRole: "orders",
+          rowNumber: order.sourceRowNumber,
+          field: "base_url",
+          message: "Base URL must not include www.",
+        },
+      };
     }
 
     return {
       ok: true,
       baseUrl: serializeBaseUrl(parsed),
-      issues,
+      issues: [],
     };
   } catch {
     return {
@@ -676,6 +690,15 @@ function isLikelyDomainName(hostname: string): boolean {
   return (
     labels.every(isValidDomainLabel) &&
     isValidTopLevelDomain(labels[labels.length - 1])
+  );
+}
+
+function isExampleDotComPlaceholder(hostname: string): boolean {
+  const normalizedHostname = hostname.toLowerCase();
+
+  return (
+    normalizedHostname === "example.com" ||
+    normalizedHostname.endsWith(".example.com")
   );
 }
 

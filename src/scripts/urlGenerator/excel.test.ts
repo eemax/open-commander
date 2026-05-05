@@ -224,7 +224,7 @@ describe("URL generator workbook runner", () => {
     );
   });
 
-  it("warns but completes when the base URL contains www", async () => {
+  it("rejects base URLs that contain www", async () => {
     const ordersBuffer = await createWorkbookBuffer([
       ["Purchase Order", "Product Code", "Base URL"],
       ["PO 100", "ABC-1", "https://www.example.test/"],
@@ -234,45 +234,20 @@ describe("URL generator workbook runner", () => {
       ["abc 1", "1234567890123", "SKU-1"],
     ]);
 
-    const result = await runUrlGenerator([
-      {
-        role: "orders",
-        fileName: "spring_orders.xlsx",
-        buffer: ordersBuffer,
-      },
-      {
-        role: "eans",
-        fileName: "spring_eans.xlsx",
-        buffer: eansBuffer,
-      },
-    ]);
-
-    expect(result.stats.urlsCreated).toBe(1);
-    expect(result.issues).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          severity: "warning",
-          rowNumber: 2,
-          field: "base_url",
-          message: "Base URL includes www. Prefer the domain without www.",
-        }),
+    await expect(
+      runUrlGenerator([
+        {
+          role: "orders",
+          fileName: "spring_orders.xlsx",
+          buffer: ordersBuffer,
+        },
+        {
+          role: "eans",
+          fileName: "spring_eans.xlsx",
+          buffer: eansBuffer,
+        },
       ]),
-    );
-
-    const outputWorkbook = new ExcelJS.Workbook();
-    await outputWorkbook.xlsx.load(result.outputBuffer);
-    const summaryRows = readWorksheetRows(outputWorkbook.getWorksheet("summary"));
-
-    expect(summaryRows).toEqual(
-      expect.arrayContaining([
-        [
-          "Input issues",
-          "Warnings and non-fatal issues",
-          1,
-          "See the input_issues sheet for row-level details.",
-        ],
-      ]),
-    );
+    ).rejects.toThrow("Base URL must not include www.");
   });
 });
 

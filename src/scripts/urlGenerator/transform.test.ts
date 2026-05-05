@@ -276,19 +276,19 @@ describe("URL generator transform", () => {
         {
           purchase_order: "1001",
           product: "P1",
-          base_url: "https://example.com",
+          base_url: "https://brand.com",
           sourceRowNumber: 2,
         },
         {
           purchase_order: "1002",
           product: "P1",
-          base_url: "https://example.com/",
+          base_url: "https://brand.com/",
           sourceRowNumber: 3,
         },
         {
           purchase_order: "1003",
           product: "P1",
-          base_url: "http://example.com",
+          base_url: "http://brand.com",
           sourceRowNumber: 4,
         },
         {
@@ -300,7 +300,7 @@ describe("URL generator transform", () => {
         {
           purchase_order: "1005",
           product: "P1",
-          base_url: "https://example.com/base",
+          base_url: "https://brand.com/base",
           sourceRowNumber: 6,
         },
       ],
@@ -308,8 +308,8 @@ describe("URL generator transform", () => {
     );
 
     expect(output.urls.map((row) => row.url)).toEqual([
-      "https://example.com/01/1234567890123/10/1001",
-      "https://example.com/01/1234567890123/10/1002",
+      "https://brand.com/01/1234567890123/10/1001",
+      "https://brand.com/01/1234567890123/10/1002",
     ]);
     expect(output.issues).toEqual(
       expect.arrayContaining([
@@ -336,29 +336,65 @@ describe("URL generator transform", () => {
     );
   });
 
-  it("warns when a base URL uses www but still creates the URL", () => {
+  it("rejects the example.com template placeholder", () => {
     const output = buildUrls(
       [
         {
           purchase_order: "1001",
           product: "P1",
+          base_url: "https://example.com",
+          sourceRowNumber: 2,
+        },
+        {
+          purchase_order: "1002",
+          product: "P1",
           base_url: "https://www.example.com/",
+          sourceRowNumber: 3,
+        },
+      ],
+      [{ product: "P1", ean: "1234567890123", sku: "", sourceRowNumber: 2 }],
+    );
+
+    expect(output.urls).toEqual([]);
+    expect(output.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          rowNumber: 2,
+          field: "base_url",
+          message: "Base URL cannot use the template placeholder example.com.",
+        }),
+        expect.objectContaining({
+          severity: "error",
+          rowNumber: 3,
+          field: "base_url",
+          message: "Base URL cannot use the template placeholder example.com.",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects base URLs that include www", () => {
+    const output = buildUrls(
+      [
+        {
+          purchase_order: "1001",
+          product: "P1",
+          base_url: "https://www.brand.com/",
           sourceRowNumber: 2,
         },
       ],
       [{ product: "P1", ean: "1234567890123", sku: "", sourceRowNumber: 2 }],
     );
 
-    expect(output.urls.map((row) => row.url)).toEqual([
-      "https://www.example.com/01/1234567890123/10/1001",
-    ]);
+    expect(output.urls).toEqual([]);
     expect(output.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          severity: "warning",
+          severity: "error",
           rowNumber: 2,
           field: "base_url",
-          message: "Base URL includes www. Prefer the domain without www.",
+          message: "Base URL must not include www.",
         }),
       ]),
     );
