@@ -23,6 +23,17 @@ export type UploadedScriptFile = {
   buffer: ArrayBuffer;
 };
 
+export type RunStageId =
+  | "worker-started"
+  | "loading-excel-engine"
+  | "reading-orders-workbook"
+  | "reading-eans-workbook"
+  | "building-urls"
+  | "writing-output-workbook"
+  | "complete";
+
+export type RunStageHandler = (stage: RunStageId) => void;
+
 export type DetectedColumn = {
   key: string;
   label: string;

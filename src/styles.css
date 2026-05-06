@@ -761,6 +761,13 @@ select:disabled {
   line-height: 1.4;
 }
 
+.failure-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 13px;
+}
+
 .failure-details p {
   margin: 8px 0 0;
   color: var(--text-muted);

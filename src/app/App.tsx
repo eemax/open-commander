@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   createUrlGeneratorWorkerRun,
+  WorkerUnexpectedError,
   WorkerRunError,
   type WorkerRun,
 } from "./runInWorker";
@@ -31,6 +32,8 @@ import {
   MAX_FILE_SIZE_BYTES,
   type FileRole,
   type ProcessingIssue,
+  type RunStageId,
+  type UploadedScriptFile,
   type UrlGeneratorRunResult,
 } from "../scripts/urlGenerator/types";
 
@@ -56,6 +59,12 @@ type RunFailure = {
   nextSteps: string[];
   issues: ProcessingIssue[];
   details?: string;
+  canUseCompatibilityMode?: boolean;
+};
+
+type SelectedWorkbookFiles = {
+  orders: LocalWorkbookFile;
+  eans: LocalWorkbookFile;
 };
 
 const emptySelection: RoleSelection = {
@@ -70,6 +79,7 @@ export function App() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [runStatus, setRunStatus] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<UrlGeneratorRunResult | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(null);
@@ -126,6 +136,7 @@ export function App() {
     activeRunRef.current?.cancel();
     activeRunRef.current = null;
     setIsRunning(false);
+    setRunStatus("");
   }
 
   function addFiles(fileList: FileList | File[]) {
@@ -173,6 +184,7 @@ export function App() {
     setResult(null);
     setRunFailure(null);
     setError("");
+    setRunStatus("");
   }
 
   function removeFile(id: string) {
@@ -187,6 +199,7 @@ export function App() {
     setResult(null);
     setRunFailure(null);
     setError("");
+    setRunStatus("");
   }
 
   async function runSelectedScript() {
@@ -206,34 +219,17 @@ export function App() {
     setError("");
     setResult(null);
     setRunFailure(null);
+    setRunStatus("Reading workbook files");
     let runVersion: number | null = null;
 
     try {
       runVersion = runVersionRef.current + 1;
       runVersionRef.current = runVersion;
-      const [ordersBuffer, eansBuffer] = await Promise.all([
-        readFileAsArrayBuffer(selectedFiles.orders.file),
-        readFileAsArrayBuffer(selectedFiles.eans.file),
-      ]);
-
-      if (runVersionRef.current !== runVersion) {
-        return;
-      }
-
-      const workerRun = createUrlGeneratorWorkerRun([
-        {
-          role: "orders",
-          fileName: selectedFiles.orders.file.name,
-          buffer: ordersBuffer,
-        },
-        {
-          role: "eans",
-          fileName: selectedFiles.eans.file.name,
-          buffer: eansBuffer,
-        },
-      ]);
-      activeRunRef.current = workerRun;
-      const response = await workerRun.promise;
+      const runFiles: SelectedWorkbookFiles = {
+        orders: selectedFiles.orders,
+        eans: selectedFiles.eans,
+      };
+      const response = await runWithWorkerRetry(runFiles, runVersion);
 
       if (runVersionRef.current !== runVersion) {
         return;
@@ -259,7 +255,166 @@ export function App() {
       if (runVersion === null || runVersionRef.current === runVersion) {
         activeRunRef.current = null;
         setIsRunning(false);
+        setRunStatus("");
       }
+    }
+  }
+
+  async function runCompatibilityMode() {
+    if (!selectedFiles.orders || !selectedFiles.eans) {
+      setRunFailure(null);
+      setError("Choose one orders workbook and one EAN workbook.");
+      return;
+    }
+
+    if (selectedFiles.orders.id === selectedFiles.eans.id) {
+      setRunFailure(null);
+      setError("Orders and EANs must use different workbooks.");
+      return;
+    }
+
+    setIsRunning(true);
+    setError("");
+    setResult(null);
+    setRunFailure(null);
+    setRunStatus("Reading workbook files");
+    let runVersion: number | null = null;
+
+    try {
+      runVersion = runVersionRef.current + 1;
+      runVersionRef.current = runVersion;
+      const runFiles: SelectedWorkbookFiles = {
+        orders: selectedFiles.orders,
+        eans: selectedFiles.eans,
+      };
+      const uploadedFiles = await readSelectedWorkbookFiles(runFiles);
+
+      assertCurrentRun(runVersion);
+      setRunStatus("Loading Excel engine in compatibility mode");
+      const { FatalInputIssueError, runUrlGenerator } = await import(
+        "../scripts/urlGenerator/excel"
+      );
+
+      try {
+        const response = await runUrlGenerator(uploadedFiles, {
+          onStage: (stage) => setRunStatus(formatRunStage(stage, "compatibility")),
+        });
+
+        assertCurrentRun(runVersion);
+        setResult(response);
+        setRunFailure(null);
+      } catch (runError) {
+        if (runError instanceof FatalInputIssueError) {
+          throw new WorkerRunError({
+            type: "error",
+            kind: "input-issues",
+            message: runError.message,
+            issues: runError.issues,
+          });
+        }
+
+        throw runError;
+      }
+    } catch (runError) {
+      if (runVersion !== null && runVersionRef.current !== runVersion) {
+        return;
+      }
+
+      if (
+        runError instanceof DOMException &&
+        runError.name === "AbortError"
+      ) {
+        return;
+      }
+
+      setError("");
+      setRunFailure(describeRunFailure(runError, { compatibilityTried: true }));
+    } finally {
+      if (runVersion === null || runVersionRef.current === runVersion) {
+        activeRunRef.current = null;
+        setIsRunning(false);
+        setRunStatus("");
+      }
+    }
+  }
+
+  async function runWithWorkerRetry(
+    runFiles: SelectedWorkbookFiles,
+    runVersion: number,
+  ): Promise<UrlGeneratorRunResult> {
+    const maxAttempts = 2;
+    let lastRecoverableError: WorkerUnexpectedError | WorkerRunError | null = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      assertCurrentRun(runVersion);
+      setRunStatus(
+        attempt === 1
+          ? "Reading workbook files"
+          : "Edge could not finish the worker run. Retrying once.",
+      );
+      const uploadedFiles = await readSelectedWorkbookFiles(runFiles);
+
+      assertCurrentRun(runVersion);
+      setRunStatus(formatWorkerAttemptStatus(attempt, "Starting workbook worker"));
+      const workerRun = createUrlGeneratorWorkerRun(uploadedFiles, {
+        onStage: (stage) => setRunStatus(formatRunStage(stage, "worker", attempt)),
+      });
+      activeRunRef.current = workerRun;
+
+      try {
+        return await workerRun.promise;
+      } catch (runError) {
+        activeRunRef.current = null;
+
+        if (isRecoverableWorkerFailure(runError)) {
+          lastRecoverableError = runError;
+
+          if (attempt < maxAttempts) {
+            continue;
+          }
+        }
+
+        throw runError;
+      }
+    }
+
+    throw lastRecoverableError ?? new Error("The workbook worker stopped unexpectedly.");
+  }
+
+  function isRecoverableWorkerFailure(
+    error: unknown,
+  ): error is WorkerUnexpectedError | WorkerRunError {
+    return (
+      error instanceof WorkerUnexpectedError ||
+      (error instanceof WorkerRunError && error.kind === "runtime")
+    );
+  }
+
+  async function readSelectedWorkbookFiles(
+    runFiles: SelectedWorkbookFiles,
+  ): Promise<UploadedScriptFile[]> {
+    const [ordersBuffer, eansBuffer] = await Promise.all([
+      readFileAsArrayBuffer(runFiles.orders.file),
+      readFileAsArrayBuffer(runFiles.eans.file),
+    ]);
+
+    return [
+      {
+        role: "orders",
+        fileName: runFiles.orders.file.name,
+        buffer: ordersBuffer,
+      },
+      {
+        role: "eans",
+        fileName: runFiles.eans.file.name,
+        buffer: eansBuffer,
+      },
+    ];
+  }
+
+  function assertCurrentRun(runVersion: number): void {
+    if (runVersionRef.current !== runVersion) {
+      throw new DOMException("Run canceled.", "AbortError");
     }
   }
 
@@ -271,6 +426,7 @@ export function App() {
     setResult(null);
     setRunFailure(null);
     setError("");
+    setRunStatus("");
   }
 
   function openScript(scriptId: string) {
@@ -543,12 +699,28 @@ export function App() {
                 {result ? (
                   <ResultView result={result} />
                 ) : runFailure ? (
-                  <RunFailureView failure={runFailure} />
+                  <RunFailureView
+                    failure={runFailure}
+                    isRunning={isRunning}
+                    onRunCompatibilityMode={
+                      runFailure.canUseCompatibilityMode
+                        ? runCompatibilityMode
+                        : undefined
+                    }
+                  />
                 ) : (
                   <div className="result-empty">
-                    <CheckCircle2 aria-hidden="true" size={28} />
-                    <h3>No output yet</h3>
-                    <p>Generated workbook appears here.</p>
+                    {isRunning ? (
+                      <Loader2 aria-hidden="true" className="spin" size={28} />
+                    ) : (
+                      <CheckCircle2 aria-hidden="true" size={28} />
+                    )}
+                    <h3>{isRunning ? "Working" : "No output yet"}</h3>
+                    <p>
+                      {isRunning
+                        ? runStatus || "Processing workbook files in this browser."
+                        : "Generated workbook appears here."}
+                    </p>
                   </div>
                 )}
               </section>
@@ -603,7 +775,15 @@ function ScriptSelector({
   );
 }
 
-function RunFailureView({ failure }: { failure: RunFailure }) {
+function RunFailureView({
+  failure,
+  isRunning,
+  onRunCompatibilityMode,
+}: {
+  failure: RunFailure;
+  isRunning: boolean;
+  onRunCompatibilityMode?: () => void;
+}) {
   const shownIssues = failure.issues.slice(0, 8);
 
   return (
@@ -623,6 +803,23 @@ function RunFailureView({ failure }: { failure: RunFailure }) {
             <li key={step}>{step}</li>
           ))}
         </ul>
+        {onRunCompatibilityMode ? (
+          <div className="failure-actions">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={isRunning}
+              onClick={onRunCompatibilityMode}
+            >
+              {isRunning ? (
+                <Loader2 aria-hidden="true" className="spin" size={17} />
+              ) : (
+                <Play aria-hidden="true" size={17} />
+              )}
+              <span>{isRunning ? "Running" : "Try compatibility mode"}</span>
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {shownIssues.length > 0 ? (
@@ -800,7 +997,51 @@ function countIssues(issues: UrlGeneratorRunResult["issues"]) {
   );
 }
 
-function describeRunFailure(error: unknown): RunFailure {
+function formatWorkerAttemptStatus(attempt: number, status: string): string {
+  return attempt === 1 ? status : `Retry ${attempt - 1}: ${status}`;
+}
+
+function formatRunStage(
+  stage: RunStageId,
+  mode: "worker" | "compatibility" | "details",
+  attempt = 1,
+): string {
+  const label = runStageLabel(stage);
+
+  if (mode === "details") {
+    return label;
+  }
+
+  if (mode === "compatibility") {
+    return `Compatibility mode: ${label}`;
+  }
+
+  return formatWorkerAttemptStatus(attempt, label);
+}
+
+function runStageLabel(stage: RunStageId): string {
+  switch (stage) {
+    case "worker-started":
+      return "Workbook worker started";
+    case "loading-excel-engine":
+      return "Loading Excel engine";
+    case "reading-orders-workbook":
+      return "Reading orders workbook";
+    case "reading-eans-workbook":
+      return "Reading EAN workbook";
+    case "building-urls":
+      return "Building URLs";
+    case "writing-output-workbook":
+      return "Writing output workbook";
+    case "complete":
+      return "Workbook complete";
+  }
+}
+
+function describeRunFailure(
+  error: unknown,
+  options: { compatibilityTried?: boolean } = {},
+): RunFailure {
   if (error instanceof WorkerRunError && error.kind === "input-issues") {
     const issues = error.issues.filter((issue) => issue.severity === "error");
 
@@ -818,6 +1059,50 @@ function describeRunFailure(error: unknown): RunFailure {
     }
   }
 
+  if (options.compatibilityTried) {
+    return {
+      title: "Compatibility mode could not complete",
+      summary:
+        "Edge could not finish this workbook run. The files may still be valid.",
+      nextSteps: [
+        "Try the same files in Google Chrome.",
+        "If Chrome also fails, send the workbook pair for review.",
+      ],
+      issues: [],
+      details: formatRuntimeDetails(error),
+    };
+  }
+
+  if (error instanceof WorkerUnexpectedError) {
+    return {
+      title: "Edge stopped the workbook processor",
+      summary:
+        "Open Commander retried the browser worker once, but Edge stopped it before completion.",
+      nextSteps: [
+        "Try compatibility mode. It may make this tab feel busy briefly while it runs.",
+        "If compatibility mode also fails, try the same files in Google Chrome.",
+      ],
+      issues: [],
+      details: formatUnexpectedWorkerDetails(error),
+      canUseCompatibilityMode: true,
+    };
+  }
+
+  if (error instanceof WorkerRunError && error.kind === "runtime") {
+    return {
+      title: "Workbook processor could not complete",
+      summary:
+        "Open Commander retried the browser worker once, but Edge still could not finish the run.",
+      nextSteps: [
+        "Try compatibility mode. It may make this tab feel busy briefly while it runs.",
+        "If compatibility mode also fails, try the same files in Google Chrome.",
+      ],
+      issues: [],
+      details: formatWorkerRuntimeDetails(error),
+      canUseCompatibilityMode: true,
+    };
+  }
+
   const message =
     error instanceof Error ? error.message : "The files could not be processed.";
 
@@ -831,6 +1116,29 @@ function describeRunFailure(error: unknown): RunFailure {
     issues: [],
     details: message,
   };
+}
+
+function formatUnexpectedWorkerDetails(error: WorkerUnexpectedError): string {
+  const lastStage = error.lastStage
+    ? formatRunStage(error.lastStage, "details")
+    : "The worker stopped before reporting a stage.";
+
+  return `Last stage: ${lastStage}. Error: ${error.message}. Browser: ${navigator.userAgent}`;
+}
+
+function formatWorkerRuntimeDetails(error: WorkerRunError): string {
+  const lastStage = error.lastStage
+    ? formatRunStage(error.lastStage, "details")
+    : "The worker did not report a stage.";
+
+  return `Last stage: ${lastStage}. Error: ${error.message}. Browser: ${navigator.userAgent}`;
+}
+
+function formatRuntimeDetails(error: unknown): string {
+  const message =
+    error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+  return `${message}. Browser: ${navigator.userAgent}`;
 }
 
 function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {

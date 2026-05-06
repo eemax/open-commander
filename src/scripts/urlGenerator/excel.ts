@@ -12,6 +12,7 @@ import {
   URL_GENERATOR_SCRIPT_ID,
   type DetectedTable,
   type ProcessingIssue,
+  type RunStageHandler,
   type UnmatchedOrderRow,
   type UploadedScriptFile,
   type UrlGeneratorRunResult,
@@ -37,6 +38,7 @@ export class FatalInputIssueError extends Error {
 
 export async function runUrlGenerator(
   files: UploadedScriptFile[],
+  options: { onStage?: RunStageHandler } = {},
 ): Promise<UrlGeneratorRunResult> {
   const ordersFile = files.find((file) => file.role === "orders");
   const eansFile = files.find((file) => file.role === "eans");
@@ -45,11 +47,13 @@ export async function runUrlGenerator(
     throw new Error("Both an orders workbook and an EAN workbook are required.");
   }
 
-  const [ordersWorkbook, eansWorkbook] = await Promise.all([
-    readWorkbookRows(ordersFile.buffer),
-    readWorkbookRows(eansFile.buffer),
-  ]);
+  options.onStage?.("reading-orders-workbook");
+  const ordersWorkbook = await readWorkbookRows(ordersFile.buffer);
 
+  options.onStage?.("reading-eans-workbook");
+  const eansWorkbook = await readWorkbookRows(eansFile.buffer);
+
+  options.onStage?.("building-urls");
   const orders = extractOrders(ordersWorkbook.rows, {
     fileRole: "orders",
     fileName: ordersFile.fileName,
@@ -67,6 +71,7 @@ export async function runUrlGenerator(
   const issues = [...inputIssues, ...built.issues];
   assertNoFatalInputIssues(issues);
 
+  options.onStage?.("writing-output-workbook");
   const outputBuffer = await writeOutputWorkbook({
     urls: built.urls,
     unmatchedOrders: built.unmatchedOrders,

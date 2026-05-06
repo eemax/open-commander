@@ -1,6 +1,7 @@
 import {
   URL_GENERATOR_SCRIPT_ID,
   type ProcessingIssue,
+  type RunStageId,
   type UploadedScriptFile,
   type UrlGeneratorRunResult,
 } from "../scripts/urlGenerator/types";
@@ -17,29 +18,52 @@ type WorkerFailure = {
   issues?: ProcessingIssue[];
 };
 
-type WorkerResponse = WorkerSuccess | WorkerFailure;
+type WorkerStage = {
+  type: "stage";
+  stage: RunStageId;
+};
+
+type WorkerResponse = WorkerSuccess | WorkerFailure | WorkerStage;
 
 export type WorkerRun<T> = {
   promise: Promise<T>;
   cancel: () => void;
 };
 
+type WorkerRunOptions = {
+  onStage?: (stage: RunStageId) => void;
+};
+
 export class WorkerRunError extends Error {
   readonly kind: WorkerFailure["kind"];
   readonly issues: ProcessingIssue[];
+  readonly lastStage: RunStageId | null;
 
-  constructor(failure: WorkerFailure) {
+  constructor(failure: WorkerFailure, lastStage: RunStageId | null = null) {
     super(failure.message);
     this.name = "WorkerRunError";
     this.kind = failure.kind;
     this.issues = failure.issues ?? [];
+    this.lastStage = lastStage;
+  }
+}
+
+export class WorkerUnexpectedError extends Error {
+  readonly lastStage: RunStageId | null;
+
+  constructor(message: string, lastStage: RunStageId | null) {
+    super(message);
+    this.name = "WorkerUnexpectedError";
+    this.lastStage = lastStage;
   }
 }
 
 export function createUrlGeneratorWorkerRun(
   files: UploadedScriptFile[],
+  options: WorkerRunOptions = {},
 ): WorkerRun<UrlGeneratorRunResult> {
   let worker: Worker;
+  let lastStage: RunStageId | null = null;
 
   try {
     worker = new Worker(new URL("../workers/scriptRunner.worker.ts", import.meta.url), {
@@ -47,7 +71,10 @@ export function createUrlGeneratorWorkerRun(
     });
   } catch (error) {
     return rejectedWorkerRun(
-      new Error(`The workbook worker could not start. ${formatUnknownError(error)}`),
+      new WorkerUnexpectedError(
+        `The workbook worker could not start. ${formatUnknownError(error)}`,
+        lastStage,
+      ),
     );
   }
 
@@ -61,6 +88,12 @@ export function createUrlGeneratorWorkerRun(
         return;
       }
 
+      if (event.data.type === "stage") {
+        lastStage = event.data.stage;
+        options.onStage?.(event.data.stage);
+        return;
+      }
+
       settled = true;
       worker.terminate();
 
@@ -69,7 +102,7 @@ export function createUrlGeneratorWorkerRun(
         return;
       }
 
-      reject(new WorkerRunError(event.data));
+      reject(new WorkerRunError(event.data, lastStage));
     };
 
     worker.onerror = (event) => {
@@ -79,7 +112,7 @@ export function createUrlGeneratorWorkerRun(
 
       settled = true;
       worker.terminate();
-      reject(new Error(formatWorkerErrorEvent(event)));
+      reject(new WorkerUnexpectedError(formatWorkerErrorEvent(event), lastStage));
     };
 
     worker.onmessageerror = () => {
@@ -90,8 +123,9 @@ export function createUrlGeneratorWorkerRun(
       settled = true;
       worker.terminate();
       reject(
-        new Error(
+        new WorkerUnexpectedError(
           "The workbook worker returned a response this browser could not read.",
+          lastStage,
         ),
       );
     };
@@ -109,10 +143,11 @@ export function createUrlGeneratorWorkerRun(
       settled = true;
       worker.terminate();
       reject(
-        new Error(
+        new WorkerUnexpectedError(
           `The workbook worker could not receive the files. ${formatUnknownError(
             error,
           )}`,
+          lastStage,
         ),
       );
     }
