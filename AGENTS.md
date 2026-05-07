@@ -10,7 +10,7 @@ The first screen is a script selector. The only implemented script is URL Genera
 
 - input: one orders `.xlsx` workbook and one EAN `.xlsx` workbook
 - output: one generated `.xlsx` workbook
-- processing location: browser Web Worker
+- processing location: browser Web Worker, with one automatic retry and a user-triggered main-thread compatibility mode for worker/runtime failures
 
 ## Commands
 
@@ -56,6 +56,7 @@ src/styles.css
 - Keep business logic pure and testable outside ExcelJS.
 - Keep workbook IO in `excel.ts` or equivalent script-specific IO modules.
 - Keep Web Worker routing in `src/workers/scriptRunner.worker.ts`.
+- Keep worker/runtime failures separate from validation failures. Validation failures should show row-level input issues and should not trigger retry/compatibility mode.
 - Keep script metadata in `src/scripts/registry.ts`.
 - Keep the top-level script selector generic; put script-specific inputs behind the selected script's workspace.
 - Do not introduce storage for uploaded files unless the user explicitly changes the product requirements.
@@ -67,17 +68,20 @@ The old Python script was ported and improved. Preserve these behaviors unless a
 
 - Accepts flexible headers for orders and EAN workbooks.
 - Detects a likely header row near the top of the sheet.
-- Falls back to positional columns when no header row is found.
-- Skips incomplete rows and reports them.
+- Does not fall back to positional columns. If no recognizable header row is found, the run fails with input issues.
+- Skips incomplete rows during extraction and reports them as fatal input issues.
 - Matches products case-insensitively and ignores spaces, dots, underscores, and hyphens.
-- Deduplicates repeated EAN rows.
+- Expects one product per purchase order. Duplicate purchase orders are rejected.
+- Rejects duplicate EAN and duplicate SKU values.
+- Rejects invalid Base URLs. Base URLs must be `https://` root domains, must not include `www.`, paths, query strings, hashes, credentials, or the `example.com` template placeholder.
+- For each valid order row, creates one URL row for every EAN row that matches the order product.
 - Creates URLs with this shape:
 
 ```text
 {base_url}/01/{ean}/10/{purchase_order}
 ```
 
-- Writes `urls`, `summary`, and optional `unmatched_orders` / `input_issues` sheets.
+- Writes `urls`, `summary`, and optional `unmatched_orders` / `input_issues` sheets for successful runs. Fatal input errors stop the run before an output workbook is created.
 
 ## Before Finishing Changes
 
@@ -114,5 +118,3 @@ Root directory: /
 - ExcelJS browser bundles can be large. Keep an eye on build output if adding dependencies.
 - Tests run in Node, but the production code runs in a browser worker. Keep workbook-level tests and production builds green.
 - `App.tsx` has a generic script selector, but the opened workspace currently assumes URL Generator's two-workbook input shape. Adding scripts with different inputs likely requires per-script workspace components.
-- `zod` is installed but not currently used by URL Generator.
-- This directory is initialized as a git repository on `main`, but the initial files may still be uncommitted.

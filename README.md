@@ -1,6 +1,6 @@
 # Open Commander
 
-Open Commander is a Cloudflare Pages-ready web app for running small Excel-processing scripts in the user's browser. The app does not upload source workbooks to a backend, does not store files, and does not require server-side compute for the current workflow.
+Open Commander is a Cloudflare-hosted web app for running small Excel-processing scripts in the user's browser. The current deployment uses Workers static assets through Wrangler. The app does not upload source workbooks to a backend, does not store files, and does not require server-side compute for the current workflow.
 
 The first script is **URL Generator**. It takes one orders workbook and one EAN workbook, matches rows by product, and produces a downloadable `.xlsx` output with generated URLs.
 
@@ -12,7 +12,7 @@ The first script is **URL Generator**. It takes one orders workbook and one EAN 
 - ExcelJS
 - Web Workers
 - Vitest
-- Cloudflare Pages
+- Cloudflare Workers static assets
 
 ## Requirements
 
@@ -89,9 +89,9 @@ npm run test:watch
 The current tests cover:
 
 - flexible header detection
-- fallback positional columns when no header row exists
+- required-header failures when no recognizable header row exists
 - skipped incomplete rows
-- duplicate EAN row handling
+- duplicate purchase order, EAN, and SKU validation
 - workbook read/write behavior through ExcelJS
 
 ## Cloudflare Deployment
@@ -137,11 +137,10 @@ That command builds the app and uploads `dist` with `wrangler pages deploy`.
 2. Choose a script from the script selector.
 3. Drop or select `.xlsx` files.
 4. Choose one orders workbook and one EAN workbook.
-5. Optionally choose sorted output order or source workbook order.
-6. Run the script.
-7. Download the generated output workbook.
+5. Run the script.
+6. Download the generated output workbook.
 
-The app enforces a 5 MB maximum per file. Files are read locally with browser APIs and processed in a Web Worker. The URL Generator workspace also includes small downloadable orders and EAN workbook templates.
+The app enforces a 5 MB maximum per file. Files are read locally with browser APIs and normally processed in a Web Worker. If Microsoft Edge stops the worker, the app retries once and then offers compatibility mode, which runs the same script on the main browser thread. The URL Generator workspace also includes small downloadable orders and EAN workbook templates.
 
 ## URL Generator Input
 
@@ -165,19 +164,15 @@ Required fields:
 - `product`
 - `base_url`
 
+Each purchase order may appear once. The current workflow expects exactly one product per order; duplicate purchase order values are rejected.
+
 Accepted header examples include:
 
-- Purchase order: `purchase_order`, `purchase order`, `purchase order number`, `po`, `po number`, `order number`
-- Product: `product`, `product code`, `product_code`, `item`, `item code`, `article`, `style`, `sku`
-- Base URL: `base_url`, `base url`, `url`, `link`, `web link`, `base link`
+- Purchase order: `purchase_order`, `purchase order`, `purchase order number`, `po`, `po number`, `order`, `order number`, `batch`, `batch number`
+- Product: `product`, `product code`, `product_code`, `product number`, `item`, `item code`, `item number`, `article`, `article number`, `style`, `style number`
+- Base URL: `base_url`, `base url`, `url`, `link`, `web link`, `base link`, `website`
 
-If no header row is detected, the script falls back to:
-
-```text
-Column A: purchase_order
-Column B: product
-Column C: base_url
-```
+If no recognizable header row is detected, the run fails with input issues. The script no longer falls back to positional columns.
 
 ### EAN Columns
 
@@ -192,17 +187,11 @@ Optional field:
 
 Accepted header examples include:
 
-- Product: `product`, `product code`, `product_code`, `item`, `item code`, `article`, `style`, `sku`
-- EAN: `ean`, `eans`, `barcode`, `bar code`, `gtin`, `upc`
+- Product: `product`, `product code`, `product_code`, `product number`, `item`, `item code`, `item number`, `article`, `article number`, `style`, `style number`
+- EAN: `ean`, `eans`, `barcode`, `bar code`, `gtin`, `gtins`, `upc`
 - SKU: `sku`, `variant sku`, `size sku`, `internal sku`
 
-If no header row is detected, the script falls back to:
-
-```text
-Column A: product
-Column B: ean
-Column C: sku
-```
+If no recognizable header row is detected, the run fails with input issues. Duplicate EAN and duplicate SKU values are rejected.
 
 ## URL Generator Output
 
@@ -214,7 +203,7 @@ The generated workbook always includes:
 It may also include:
 
 - `unmatched_orders`, when any order product has no matching EAN product
-- `input_issues`, when warnings, errors, or informational notices were recorded
+- `input_issues`, when warnings or informational notices were recorded in an otherwise successful run
 
 The main URL format is:
 
@@ -223,7 +212,9 @@ The main URL format is:
 ```
 
 The script trims trailing slashes from `base_url` and URL-encodes the EAN and purchase order path segments.
-`base_url` values must be valid `https://` root domains, such as `https://example.com`. Template placeholder domains such as `example.com` are rejected in uploaded data so they are not accidentally reused in output.
+`base_url` values must be valid `https://` root domains, such as `https://example.com`. They must not include paths, query strings, hashes, credentials, `http://`, or `www.`. Template placeholder domains such as `example.com` are rejected in uploaded data so they are not accidentally reused in output.
+
+For each valid order row, the script finds all EAN rows for the same normalized product and creates one URL row per matching EAN. Product matching is case-insensitive and ignores spaces, dots, underscores, and hyphens.
 
 The `urls` sheet includes `order_row_number` and `ean_row_number` columns so output rows can be traced back to the source workbooks. `unmatched_orders` includes `order_row_number`.
 
@@ -282,6 +273,7 @@ React UI
   -> user confirms orders and EAN files
   -> App reads File objects as ArrayBuffer
   -> runInWorker posts buffers to scriptRunner.worker
+  -> worker reports progress stages and dynamically loads the Excel engine
   -> worker calls runUrlGenerator
   -> ExcelJS reads both workbooks
   -> transform logic extracts records and builds URLs
@@ -289,6 +281,8 @@ React UI
   -> worker returns ArrayBuffer to UI
   -> UI creates a Blob download
 ```
+
+If the worker stops unexpectedly, the UI rereads the selected files and retries once. If the retry fails with a runtime/worker failure, the UI offers compatibility mode. Validation failures, such as missing headers or duplicate identifiers, are shown as input issues and are not retried.
 
 ## Adding Another Script
 
@@ -311,11 +305,12 @@ The first screen is already a script selector. `App.tsx` still assumes the URL G
 - The 5 MB file limit is defined in `src/scripts/urlGenerator/types.ts`.
 - Header matching is intentionally forgiving. It normalizes case, accents, punctuation, separators, and common symbols like `#`.
 - Header rows are scanned near the top of the sheet, so exported workbooks with a title row above the actual headers should still work.
-- If no headers are detected, data starts at row 1 and positional fallback columns are used.
-- If a header row is detected, missing required columns are reported instead of silently falling back to positional columns.
-- Rows missing required values are skipped and reported in `input_issues`.
+- If no headers are detected, the run fails with input issues. There is no positional fallback.
+- If a header row is detected, missing required columns are reported as input issues.
+- Rows missing required values are skipped during extraction and reported as fatal input issues, so no output workbook is created until they are fixed.
 - Product matching is case-insensitive and ignores spaces, dots, underscores, and hyphens.
-- Duplicate EAN rows are skipped by product, EAN, and SKU.
+- Purchase order values must be unique because the workflow expects one product per order.
+- Duplicate EAN and SKU values are reported as fatal input issues.
 - EAN values are checked for non-numeric characters and unusual lengths.
 - Simple zero-padded numeric formats, such as `0000000000000`, are preserved when ExcelJS exposes the number format.
 - Only the first non-empty worksheet in each workbook is currently processed.

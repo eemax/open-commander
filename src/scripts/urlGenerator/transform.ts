@@ -203,7 +203,7 @@ export function buildUrls(
         fileRole: "orders",
         rowNumber: order.sourceRowNumber,
         field: "purchase_order",
-        message: `Duplicate purchase order "${order.purchase_order}" skipped.`,
+        message: `Duplicate purchase order "${order.purchase_order}" is not allowed.`,
       });
       continue;
     }
@@ -225,7 +225,7 @@ export function buildUrls(
         fileRole: "eans",
         rowNumber: eanRecord.sourceRowNumber,
         field: "ean",
-        message: `Duplicate EAN "${eanRecord.ean}" skipped.`,
+        message: `Duplicate EAN "${eanRecord.ean}" is not allowed.`,
       });
     }
 
@@ -236,7 +236,7 @@ export function buildUrls(
         fileRole: "eans",
         rowNumber: eanRecord.sourceRowNumber,
         field: "sku",
-        message: `Duplicate SKU "${eanRecord.sku}" skipped.`,
+        message: `Duplicate SKU "${eanRecord.sku}" is not allowed.`,
       });
     }
 
