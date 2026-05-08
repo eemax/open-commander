@@ -222,24 +222,26 @@ describe("URL generator transform", () => {
     );
   });
 
-  it("flags duplicate purchase orders without caring about repeated products or URLs", () => {
+  it("flags duplicate purchase order and product combinations", () => {
     const orders = extractOrders(
       [
         ["Purchase Order", "Product", "Base URL"],
         ["1001", "P-1", "https://example.test/"],
         ["1001", "P-2", "https://example.test"],
-        ["1002", "P-2", "https://example.test"],
+        ["1001", "p 1", "https://example.test"],
       ],
       ordersContext,
     );
 
+    expect(orders.records).toHaveLength(3);
     expect(orders.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           severity: "error",
-          rowNumber: 3,
+          rowNumber: 4,
           field: "purchase_order",
-          message: 'Duplicate purchase order "1001" also appears on row 2.',
+          message:
+            'Duplicate purchase order/product combination "1001" + "p 1" also appears on row 2.',
         }),
       ]),
     );
@@ -429,6 +431,12 @@ describe("URL generator transform", () => {
   it("always sorts by purchase order, product, then SKU", () => {
     const orders = [
       {
+        purchase_order: "1001",
+        product: "A",
+        base_url: "https://example.test",
+        sourceRowNumber: 5,
+      },
+      {
         purchase_order: "1002",
         product: "B",
         base_url: "https://example.test",
@@ -460,6 +468,7 @@ describe("URL generator transform", () => {
         row.sku,
       ]),
     ).toEqual([
+      ["1001", "A", ""],
       ["1001", "B", "S-1"],
       ["1001", "B", "S-2"],
       ["1002", "B", "S-1"],

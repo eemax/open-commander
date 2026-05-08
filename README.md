@@ -91,7 +91,7 @@ The current tests cover:
 - flexible header detection
 - required-header failures when no recognizable header row exists
 - skipped incomplete rows
-- duplicate purchase order, EAN, and SKU validation
+- duplicate purchase order/product, EAN, and SKU validation
 - workbook read/write behavior through ExcelJS
 
 ## Cloudflare Deployment
@@ -164,7 +164,7 @@ Required fields:
 - `product`
 - `base_url`
 
-Each purchase order may appear once. The current workflow expects exactly one product per order; duplicate purchase order values are rejected.
+One purchase order may contain multiple products. Each normalized `purchase_order` + `product` combination may appear once; duplicate combinations are rejected.
 
 Accepted header examples include:
 
@@ -282,7 +282,7 @@ React UI
   -> UI creates a Blob download
 ```
 
-If the worker stops unexpectedly, the UI rereads the selected files and retries once. If the retry fails with a runtime/worker failure, the UI offers compatibility mode. Validation failures, such as missing headers or duplicate identifiers, are shown as input issues and are not retried.
+If the worker stops unexpectedly, the UI rereads the selected files and retries once. If the retry fails with a runtime/worker failure, the UI offers compatibility mode. Validation failures, such as missing headers or duplicate purchase order/product combinations, are shown as input issues and are not retried.
 
 ## Adding Another Script
 
@@ -309,7 +309,7 @@ The first screen is already a script selector. `App.tsx` still assumes the URL G
 - If a header row is detected, missing required columns are reported as input issues.
 - Rows missing required values are skipped during extraction and reported as fatal input issues, so no output workbook is created until they are fixed.
 - Product matching is case-insensitive and ignores spaces, dots, underscores, and hyphens.
-- Purchase order values must be unique because the workflow expects one product per order.
+- Purchase order/product combinations must be unique. Purchase orders are normalized by trimming and uppercasing; products use the same normalization as product matching.
 - Duplicate EAN and SKU values are reported as fatal input issues.
 - EAN values are checked for non-numeric characters and unusual lengths.
 - Simple zero-padded numeric formats, such as `0000000000000`, are preserved when ExcelJS exposes the number format.

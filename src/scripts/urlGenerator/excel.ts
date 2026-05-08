@@ -397,7 +397,7 @@ function buildSummaryRows(input: SummaryInput): SummaryRow[] {
       section: "Results",
       item: "Orders read",
       value: input.ordersRead,
-      detail: "Usable order rows after header detection, required-cell checks, and duplicate order validation.",
+      detail: "Usable order rows after header detection, required-cell checks, and duplicate purchase order/product validation.",
     },
     {
       section: "Results",

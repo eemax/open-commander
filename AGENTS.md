@@ -71,7 +71,7 @@ The old Python script was ported and improved. Preserve these behaviors unless a
 - Does not fall back to positional columns. If no recognizable header row is found, the run fails with input issues.
 - Skips incomplete rows during extraction and reports them as fatal input issues.
 - Matches products case-insensitively and ignores spaces, dots, underscores, and hyphens.
-- Expects one product per purchase order. Duplicate purchase orders are rejected.
+- Allows one purchase order to contain multiple products. Duplicate normalized purchase order/product combinations are rejected.
 - Rejects duplicate EAN and duplicate SKU values.
 - Rejects invalid Base URLs. Base URLs must be `https://` root domains, must not include `www.`, paths, query strings, hashes, credentials, or the `example.com` template placeholder.
 - For each valid order row, creates one URL row for every EAN row that matches the order product.

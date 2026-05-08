@@ -195,7 +195,7 @@ export function buildUrls(
   const seenSkus = new Set<string>();
 
   for (const order of orders) {
-    const orderKey = normalizeIdentifierKey(order.purchase_order);
+    const orderKey = normalizeOrderProductKey(order);
 
     if (seenOrders.has(orderKey)) {
       issues.push({
@@ -203,7 +203,7 @@ export function buildUrls(
         fileRole: "orders",
         rowNumber: order.sourceRowNumber,
         field: "purchase_order",
-        message: `Duplicate purchase order "${order.purchase_order}" is not allowed.`,
+        message: `Duplicate purchase order/product combination "${order.purchase_order}" + "${order.product}" is not allowed.`,
       });
       continue;
     }
@@ -443,6 +443,16 @@ function normalizeIdentifierKey(value: string): string {
   return normalizeDataText(value).toLowerCase();
 }
 
+function normalizePurchaseOrderKey(value: string): string {
+  return normalizeDataText(value).toUpperCase();
+}
+
+function normalizeOrderProductKey(record: OrderRecord): string {
+  return `${normalizePurchaseOrderKey(record.purchase_order)}\u0000${normalizeProductKey(
+    record.product,
+  )}`;
+}
+
 function validateEan(record: EanRecord, context: FileContext): ProcessingIssue[] {
   const issues: ProcessingIssue[] = [];
 
@@ -487,7 +497,7 @@ function validateDuplicateOrders(
   const issues: ProcessingIssue[] = [];
 
   for (const record of records) {
-    const key = normalizeIdentifierKey(record.purchase_order);
+    const key = normalizeOrderProductKey(record);
     const firstRecord = seenOrders.get(key);
 
     if (firstRecord) {
@@ -497,9 +507,11 @@ function validateDuplicateOrders(
             severity: "error",
             rowNumber: record.sourceRowNumber,
             field: "purchase_order",
-            message: `Duplicate purchase order "${
+            message: `Duplicate purchase order/product combination "${
               record.purchase_order
-            }" also appears on row ${firstRecord.sourceRowNumber}.`,
+            }" + "${record.product}" also appears on row ${
+              firstRecord.sourceRowNumber
+            }.`,
           },
           context,
         ),

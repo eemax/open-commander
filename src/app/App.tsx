@@ -1176,7 +1176,9 @@ function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
   }
 
   if (hasDuplicateIssue) {
-    steps.push("Make duplicate purchase orders, EANs, and SKUs unique.");
+    steps.push(
+      "Make duplicate purchase order/product combinations, EANs, and SKUs unique.",
+    );
   }
 
   if (hasEanFormatIssue) {

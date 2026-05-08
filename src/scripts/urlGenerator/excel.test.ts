@@ -167,17 +167,15 @@ describe("URL generator workbook runner", () => {
     });
   });
 
-  it("fails the run when unique identifiers are duplicated", async () => {
+  it("fails the run when purchase order and product combinations are duplicated", async () => {
     const ordersBuffer = await createWorkbookBuffer([
       ["Purchase Order", "Product Code", "Base URL"],
       ["PO 100", "ABC-1", "https://example.test/"],
-      ["PO 100", "XYZ-9", "https://example.test/"],
+      ["po 100", "abc 1", "https://example.test/"],
     ]);
     const eansBuffer = await createWorkbookBuffer([
       ["Product", "EAN", "SKU"],
       ["abc 1", "1234567890123", "SKU-1"],
-      ["xyz 9", "1234567890123", "SKU-2"],
-      ["other", "2222222222222", "sku-1"],
     ]);
 
     await expect(
@@ -193,7 +191,47 @@ describe("URL generator workbook runner", () => {
           buffer: eansBuffer,
         },
       ]),
-    ).rejects.toThrow('Duplicate purchase order "PO 100"');
+    ).rejects.toThrow(
+      'Duplicate purchase order/product combination "po 100" + "abc 1"',
+    );
+  });
+
+  it("allows one purchase order to contain multiple products", async () => {
+    const ordersBuffer = await createWorkbookBuffer([
+      ["Purchase Order", "Product Code", "Base URL"],
+      ["PO 100", "ABC-1", "https://example.test/"],
+      ["PO 100", "XYZ-9", "https://example.test/"],
+    ]);
+    const eansBuffer = await createWorkbookBuffer([
+      ["Product", "EAN", "SKU"],
+      ["abc 1", "1234567890123", "SKU-1"],
+      ["xyz 9", "2222222222222", "SKU-2"],
+    ]);
+
+    const result = await runUrlGenerator([
+      {
+        role: "orders",
+        fileName: "spring_orders.xlsx",
+        buffer: ordersBuffer,
+      },
+      {
+        role: "eans",
+        fileName: "spring_eans.xlsx",
+        buffer: eansBuffer,
+      },
+    ]);
+
+    const outputWorkbook = new ExcelJS.Workbook();
+    await outputWorkbook.xlsx.load(result.outputBuffer);
+    const urlsSheet = outputWorkbook.getWorksheet("urls");
+
+    expect(result.stats.urlsCreated).toBe(2);
+    expect(urlsSheet?.getCell("F2").value).toBe(
+      "https://example.test/01/1234567890123/10/PO%20100",
+    );
+    expect(urlsSheet?.getCell("F3").value).toBe(
+      "https://example.test/01/2222222222222/10/PO%20100",
+    );
   });
 
   it("fails the run when a base URL is not an https root domain", async () => {
