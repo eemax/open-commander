@@ -350,12 +350,12 @@ export function App() {
       setRunStatus(
         attempt === 1
           ? "Reading workbook files"
-          : "Edge could not finish the worker run. Retrying once.",
+          : "The browser could not finish background processing. Retrying once.",
       );
       const uploadedFiles = await readSelectedWorkbookFiles(runFiles);
 
       assertCurrentRun(runVersion);
-      setRunStatus(formatWorkerAttemptStatus(attempt, "Starting workbook worker"));
+      setRunStatus(formatWorkerAttemptStatus(attempt, "Starting workbook processor"));
       const workerRun = createUrlGeneratorWorkerRun(uploadedFiles, {
         onStage: (stage) => setRunStatus(formatRunStage(stage, "worker", attempt)),
       });
@@ -378,7 +378,7 @@ export function App() {
       }
     }
 
-    throw lastRecoverableError ?? new Error("The workbook worker stopped unexpectedly.");
+    throw lastRecoverableError ?? new Error("The workbook processor stopped unexpectedly.");
   }
 
   function isRecoverableWorkerFailure(
@@ -1063,7 +1063,7 @@ function countIssues(issues: UrlGeneratorRunResult["issues"]) {
 
 const runProgressSteps = [
   "Read files",
-  "Start worker",
+  "Start processor",
   "Load Excel",
   "Read orders",
   "Read EANs",
@@ -1100,6 +1100,7 @@ function runProgressIndex(status: string): number {
 
   if (
     normalized.includes("worker") ||
+    normalized.includes("processor") ||
     normalized.includes("retrying once") ||
     normalized.includes("compatibility mode")
   ) {
@@ -1151,7 +1152,7 @@ function formatRunStage(
 function runStageLabel(stage: RunStageId): string {
   switch (stage) {
     case "worker-started":
-      return "Workbook worker started";
+      return "Workbook processor started";
     case "loading-excel-engine":
       return "Loading Excel engine";
     case "reading-orders-workbook":
@@ -1204,9 +1205,9 @@ function describeRunFailure(
 
   if (error instanceof WorkerUnexpectedError) {
     return {
-      title: "Edge stopped the workbook processor",
+      title: "The browser stopped the workbook processor",
       summary:
-        "Open Commander retried the background workbook processor once, but Edge stopped it before completion.",
+        "Open Commander retried the background workbook processor once, but the browser stopped it before completion.",
       nextSteps: [
         "Try compatibility mode. It may make this tab feel busy briefly while it runs.",
         "If compatibility mode also fails, try the same files in Google Chrome.",
@@ -1250,7 +1251,7 @@ function describeRunFailure(
 function formatUnexpectedWorkerDetails(error: WorkerUnexpectedError): string {
   const lastStage = error.lastStage
     ? formatRunStage(error.lastStage, "details")
-    : "The worker stopped before reporting a stage.";
+    : "The processor stopped before reporting a stage.";
 
   return `Last stage: ${lastStage}. Error: ${error.message}. Browser: ${navigator.userAgent}`;
 }
@@ -1258,7 +1259,7 @@ function formatUnexpectedWorkerDetails(error: WorkerUnexpectedError): string {
 function formatWorkerRuntimeDetails(error: WorkerRunError): string {
   const lastStage = error.lastStage
     ? formatRunStage(error.lastStage, "details")
-    : "The worker did not report a stage.";
+    : "The processor did not report a stage.";
 
   return `Last stage: ${lastStage}. Error: ${error.message}. Browser: ${navigator.userAgent}`;
 }

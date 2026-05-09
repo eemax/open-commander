@@ -34,6 +34,15 @@ describe("URL generator workbook runner", () => {
 
     expect(result.outputFileName).toBe("spring_urls.xlsx");
     expect(result.stats.urlsCreated).toBe(1);
+    expect(result.previewRows).toEqual([
+      expect.objectContaining({
+        purchase_order: "PO 100",
+        product: "ABC-1",
+        sku: "SKU-1",
+        ean: "1234567890123",
+        url: "https://example.test/01/1234567890123/10/PO%20100",
+      }),
+    ]);
     expect(urlsSheet?.getRow(1).values).toEqual([
       undefined,
       "purchase_order",

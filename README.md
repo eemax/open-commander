@@ -138,9 +138,10 @@ That command builds the app and uploads `dist` with `wrangler pages deploy`.
 3. Drop or select `.xlsx` files.
 4. Choose one orders workbook and one EAN workbook.
 5. Run the script.
-6. Download the generated output workbook.
+6. Review the run summary and generated-row preview.
+7. Download the generated output workbook.
 
-The app enforces a 5 MB maximum per file. Files are read locally with browser APIs and normally processed in a Web Worker. If Microsoft Edge stops the worker, the app retries once and then offers compatibility mode, which runs the same script on the main browser thread. The URL Generator workspace also includes small downloadable orders and EAN workbook templates.
+The app enforces a 5 MB maximum per file. Files are read locally with browser APIs and normally processed in a Web Worker. The output panel shows progress stages while the run is active. If the browser stops background processing, the app rereads the selected files and retries once. If the retry also fails with a runtime processing failure, the UI offers compatibility mode, which runs the same script on the main browser thread. Validation failures, such as missing headers or duplicate purchase order/product combinations, are shown as input issues and are not retried. The URL Generator workspace also includes small downloadable orders and EAN workbook templates.
 
 ## URL Generator Input
 
@@ -218,11 +219,22 @@ For each valid order row, the script finds all EAN rows for the same normalized 
 
 The `urls` sheet includes `order_row_number` and `ean_row_number` columns so output rows can be traced back to the source workbooks. `unmatched_orders` includes `order_row_number`.
 
+After a successful run, the UI shows:
+
+- a plain-language summary of URLs created, source rows read, and unmatched orders
+- count cards for URLs, orders, EANs, and unmatched orders
+- a preview of the first five generated URL rows
+- detected source-table/header information
+- any non-fatal issues included in the output workbook
+
 ## Project Structure
 
 ```text
 public/
   _headers
+  templates/
+    url-generator-orders-template.xlsx
+    url-generator-eans-template.xlsx
 
 src/
   app/
@@ -231,6 +243,8 @@ src/
 
   lib/
     download.ts
+    file.ts
+    id.ts
 
   scripts/
     registry.ts
@@ -255,6 +269,9 @@ Key files:
 
 - `src/app/App.tsx`: main UI for the script selector, URL Generator workspace, file selection, role selection, run state, results, and download.
 - `src/app/runInWorker.ts`: browser-side wrapper that sends files to the Web Worker.
+- `src/lib/download.ts`: Blob download helper for generated output workbooks.
+- `src/lib/file.ts`: browser file-reading helper.
+- `src/lib/id.ts`: local ID helper for selected files and notices.
 - `src/workers/scriptRunner.worker.ts`: worker entry point for running scripts off the main thread.
 - `src/scripts/registry.ts`: list of scripts exposed by the app.
 - `src/scripts/urlGenerator/excel.ts`: reads source workbooks and writes the output workbook.
@@ -279,10 +296,11 @@ React UI
   -> transform logic extracts records and builds URLs
   -> ExcelJS writes the output workbook
   -> worker returns ArrayBuffer to UI
-  -> UI creates a Blob download
+  -> UI shows summary, first-row preview, detected headers, and download action
+  -> UI creates a Blob download when the user clicks Download
 ```
 
-If the worker stops unexpectedly, the UI rereads the selected files and retries once. If the retry fails with a runtime/worker failure, the UI offers compatibility mode. Validation failures, such as missing headers or duplicate purchase order/product combinations, are shown as input issues and are not retried.
+The worker reports progress stages as it starts, loads ExcelJS, reads each workbook, builds URLs, and writes the output workbook. If background processing stops unexpectedly, the UI rereads the selected files and retries once. If the retry fails with a runtime processing failure, the UI offers compatibility mode. Validation failures, such as missing headers or duplicate purchase order/product combinations, are shown as input issues and are not retried.
 
 ## Adding Another Script
 
@@ -303,6 +321,7 @@ The first screen is already a script selector. `App.tsx` still assumes the URL G
 
 - Processing is client-side only.
 - The 5 MB file limit is defined in `src/scripts/urlGenerator/types.ts`.
+- Successful run results include `previewRows`, currently the first five generated URL rows, for UI preview only. The full output remains in the generated workbook.
 - Header matching is intentionally forgiving. It normalizes case, accents, punctuation, separators, and common symbols like `#`.
 - Header rows are scanned near the top of the sheet, so exported workbooks with a title row above the actual headers should still work.
 - If no headers are detected, the run fails with input issues. There is no positional fallback.

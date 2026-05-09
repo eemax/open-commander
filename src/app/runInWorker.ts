@@ -72,7 +72,7 @@ export function createUrlGeneratorWorkerRun(
   } catch (error) {
     return rejectedWorkerRun(
       new WorkerUnexpectedError(
-        `The workbook worker could not start. ${formatUnknownError(error)}`,
+        `The workbook processor could not start. ${formatUnknownError(error)}`,
         lastStage,
       ),
     );
@@ -124,7 +124,7 @@ export function createUrlGeneratorWorkerRun(
       worker.terminate();
       reject(
         new WorkerUnexpectedError(
-          "The workbook worker returned a response this browser could not read.",
+          "The workbook processor returned a response this browser could not read.",
           lastStage,
         ),
       );
@@ -144,7 +144,7 @@ export function createUrlGeneratorWorkerRun(
       worker.terminate();
       reject(
         new WorkerUnexpectedError(
-          `The workbook worker could not receive the files. ${formatUnknownError(
+          `The workbook processor could not receive the files. ${formatUnknownError(
             error,
           )}`,
           lastStage,
@@ -176,7 +176,7 @@ function rejectedWorkerRun<T>(error: Error): WorkerRun<T> {
 
 function formatWorkerErrorEvent(event: ErrorEvent): string {
   const details = [
-    event.message || "The worker stopped unexpectedly.",
+    event.message || "The processor stopped unexpectedly.",
     event.filename ? `File: ${event.filename}` : "",
     event.lineno ? `Line: ${event.lineno}` : "",
     event.colno ? `Column: ${event.colno}` : "",

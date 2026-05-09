@@ -10,7 +10,8 @@ The first screen is a script selector. The only implemented script is URL Genera
 
 - input: one orders `.xlsx` workbook and one EAN `.xlsx` workbook
 - output: one generated `.xlsx` workbook
-- processing location: browser Web Worker, with one automatic retry and a user-triggered main-thread compatibility mode for worker/runtime failures
+- processing location: browser Web Worker, with progress stages, one automatic retry, and a user-triggered main-thread compatibility mode for processor/runtime failures
+- successful result UI: summary, first five generated URL rows, detected headers, non-fatal issues, and output download
 
 ## Commands
 
@@ -48,6 +49,7 @@ src/scripts/urlGenerator/fileRoles.ts
 src/scripts/urlGenerator/types.ts
 src/scripts/urlGenerator/*.test.ts
 src/styles.css
+public/templates/*.xlsx
 ```
 
 ## Architecture Rules
@@ -56,7 +58,7 @@ src/styles.css
 - Keep business logic pure and testable outside ExcelJS.
 - Keep workbook IO in `excel.ts` or equivalent script-specific IO modules.
 - Keep Web Worker routing in `src/workers/scriptRunner.worker.ts`.
-- Keep worker/runtime failures separate from validation failures. Validation failures should show row-level input issues and should not trigger retry/compatibility mode.
+- Keep processor/runtime failures separate from validation failures. Validation failures should show row-level input issues and should not trigger retry/compatibility mode.
 - Keep script metadata in `src/scripts/registry.ts`.
 - Keep the top-level script selector generic; put script-specific inputs behind the selected script's workspace.
 - Do not introduce storage for uploaded files unless the user explicitly changes the product requirements.
@@ -82,6 +84,7 @@ The old Python script was ported and improved. Preserve these behaviors unless a
 ```
 
 - Writes `urls`, `summary`, and optional `unmatched_orders` / `input_issues` sheets for successful runs. Fatal input errors stop the run before an output workbook is created.
+- Exposes `previewRows` on successful run results for the first five generated URL rows shown in the UI.
 
 ## Before Finishing Changes
 
@@ -118,3 +121,4 @@ Root directory: /
 - ExcelJS browser bundles can be large. Keep an eye on build output if adding dependencies.
 - Tests run in Node, but the production code runs in a browser worker. Keep workbook-level tests and production builds green.
 - `App.tsx` has a generic script selector, but the opened workspace currently assumes URL Generator's two-workbook input shape. Adding scripts with different inputs likely requires per-script workspace components.
+- User-facing failure copy should stay browser-neutral unless the app explicitly detects the browser. Technical error details may include `navigator.userAgent`.
