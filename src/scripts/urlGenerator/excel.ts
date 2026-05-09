@@ -93,6 +93,7 @@ export async function runUrlGenerator(
       unmatchedOrders: built.unmatchedOrders.length,
       issues: issues.length,
     },
+    previewRows: built.urls.slice(0, 5),
     issues,
     detectedTables: [orders.detectedTable, eans.detectedTable],
   };

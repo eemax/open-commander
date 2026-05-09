@@ -692,6 +692,8 @@ export function App() {
                     <span className={resultStatusClassName(result)}>
                       {resultStatusLabel(result)}
                     </span>
+                  ) : isRunning ? (
+                    <span className="status-pill status-running">Running</span>
                   ) : runFailure ? (
                     <span className="status-pill status-error">Run failed</span>
                   ) : null}
@@ -721,6 +723,7 @@ export function App() {
                         ? runStatus || "Processing workbook files in this browser."
                         : "Generated workbook appears here."}
                     </p>
+                    {isRunning ? <RunProgress status={runStatus} /> : null}
                   </div>
                 )}
               </section>
@@ -771,6 +774,30 @@ function ScriptSelector({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function RunProgress({ status }: { status: string }) {
+  const activeIndex = runProgressIndex(status);
+
+  return (
+    <div className="run-progress" aria-label="Run progress">
+      {runProgressSteps.map((step, index) => {
+        const state =
+          activeIndex > index
+            ? "complete"
+            : activeIndex === index
+              ? "active"
+              : "waiting";
+
+        return (
+          <div className={`run-progress-step run-progress-${state}`} key={step}>
+            <span className="run-progress-dot" aria-hidden="true" />
+            <span>{step}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -850,16 +877,15 @@ function RunFailureView({
 function ResultView({ result }: { result: UrlGeneratorRunResult }) {
   const shownIssues = result.issues.slice(0, 8);
   const issueSummary = summarizeIssues(result.issues);
+  const successSummary = formatSuccessSummary(result);
 
   return (
     <div className="result-content">
       <div className="result-header">
         <div>
           <h3>{result.outputFileName}</h3>
-          <p>
-            {result.stats.urlsCreated.toLocaleString()} URLs created
-            {issueSummary ? ` · ${issueSummary}` : ""}
-          </p>
+          <p>{successSummary}</p>
+          {issueSummary ? <small>{issueSummary}</small> : null}
         </div>
         <button
           className="download-button"
@@ -883,6 +909,8 @@ function ResultView({ result }: { result: UrlGeneratorRunResult }) {
         <Stat label="EANs" value={result.stats.eansRead} />
         <Stat label="Unmatched" value={result.stats.unmatchedOrders} />
       </div>
+
+      <ResultPreview rows={result.previewRows} />
 
       <div className="detected-grid">
         {result.detectedTables.map((table) => (
@@ -918,6 +946,42 @@ function ResultView({ result }: { result: UrlGeneratorRunResult }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ResultPreview({ rows }: { rows: UrlGeneratorRunResult["previewRows"] }) {
+  if (rows.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="result-preview">
+      <div className="preview-heading">
+        <h3>Preview</h3>
+        <span>First {rows.length} generated rows</span>
+      </div>
+      <div className="preview-table" aria-label="Generated URL preview">
+        <div className="preview-row preview-head">
+          <span>Purchase order</span>
+          <span>Product</span>
+          <span>SKU</span>
+          <span>EAN</span>
+          <span>URL</span>
+        </div>
+        {rows.map((row) => (
+          <div
+            className="preview-row"
+            key={`${row.purchase_order}-${row.product}-${row.ean}`}
+          >
+            <span>{row.purchase_order}</span>
+            <span>{row.product}</span>
+            <span>{row.sku || "-"}</span>
+            <span>{row.ean}</span>
+            <span>{row.url}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -997,6 +1061,71 @@ function countIssues(issues: UrlGeneratorRunResult["issues"]) {
   );
 }
 
+const runProgressSteps = [
+  "Read files",
+  "Start worker",
+  "Load Excel",
+  "Read orders",
+  "Read EANs",
+  "Build URLs",
+  "Write workbook",
+];
+
+function runProgressIndex(status: string): number {
+  const normalized = status.toLowerCase();
+
+  if (normalized.includes("workbook complete")) {
+    return runProgressSteps.length;
+  }
+
+  if (normalized.includes("writing output")) {
+    return 6;
+  }
+
+  if (normalized.includes("building url")) {
+    return 5;
+  }
+
+  if (normalized.includes("reading ean")) {
+    return 4;
+  }
+
+  if (normalized.includes("reading orders")) {
+    return 3;
+  }
+
+  if (normalized.includes("loading excel")) {
+    return 2;
+  }
+
+  if (
+    normalized.includes("worker") ||
+    normalized.includes("retrying once") ||
+    normalized.includes("compatibility mode")
+  ) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function formatSuccessSummary(result: UrlGeneratorRunResult): string {
+  const urls = result.stats.urlsCreated.toLocaleString();
+  const orders = result.stats.ordersRead.toLocaleString();
+  const eans = result.stats.eansRead.toLocaleString();
+  const unmatched = result.stats.unmatchedOrders;
+  const unmatchedText =
+    unmatched > 0
+      ? ` ${unmatched.toLocaleString()} order${
+          unmatched === 1 ? " has" : "s have"
+        } no matching EAN product.`
+      : " Every order matched at least one EAN product.";
+
+  return `Created ${urls} URL${result.stats.urlsCreated === 1 ? "" : "s"} from ${orders} order row${
+    result.stats.ordersRead === 1 ? "" : "s"
+  } and ${eans} EAN row${result.stats.eansRead === 1 ? "" : "s"}.${unmatchedText}`;
+}
+
 function formatWorkerAttemptStatus(attempt: number, status: string): string {
   return attempt === 1 ? status : `Retry ${attempt - 1}: ${status}`;
 }
@@ -1050,7 +1179,7 @@ function describeRunFailure(
 
       return {
         title: "Input data needs changes",
-        summary: `The run stopped before creating an output workbook because ${errorCount.toLocaleString()} input ${
+        summary: `The workbook data needs to be fixed before Open Commander can create an output. ${errorCount.toLocaleString()} input ${
           errorCount === 1 ? "error was" : "errors were"
         } found.`,
         nextSteps: buildInputFailureSteps(issues),
@@ -1063,7 +1192,7 @@ function describeRunFailure(
     return {
       title: "Compatibility mode could not complete",
       summary:
-        "Edge could not finish this workbook run. The files may still be valid.",
+        "The browser still could not finish this workbook run. The files may still be valid.",
       nextSteps: [
         "Try the same files in Google Chrome.",
         "If Chrome also fails, send the workbook pair for review.",
@@ -1077,7 +1206,7 @@ function describeRunFailure(
     return {
       title: "Edge stopped the workbook processor",
       summary:
-        "Open Commander retried the browser worker once, but Edge stopped it before completion.",
+        "Open Commander retried the background workbook processor once, but Edge stopped it before completion.",
       nextSteps: [
         "Try compatibility mode. It may make this tab feel busy briefly while it runs.",
         "If compatibility mode also fails, try the same files in Google Chrome.",
@@ -1092,7 +1221,7 @@ function describeRunFailure(
     return {
       title: "Workbook processor could not complete",
       summary:
-        "Open Commander retried the browser worker once, but Edge still could not finish the run.",
+        "Open Commander retried the background workbook processor once, but the browser still could not finish the run.",
       nextSteps: [
         "Try compatibility mode. It may make this tab feel busy briefly while it runs.",
         "If compatibility mode also fails, try the same files in Google Chrome.",
@@ -1108,7 +1237,7 @@ function describeRunFailure(
 
   return {
     title: "Run could not complete",
-    summary: "Open Commander could not create an output workbook from these files.",
+    summary: "The browser could not create an output workbook from these files.",
     nextSteps: [
       "Check that both selected files are valid .xlsx workbooks and are not password-protected.",
       "Upload the corrected files and run the script again.",

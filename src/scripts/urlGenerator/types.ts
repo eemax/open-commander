@@ -98,6 +98,7 @@ export type UrlGeneratorRunResult = {
   outputBuffer: ArrayBuffer;
   mimeType: typeof XLSX_MIME_TYPE;
   stats: UrlGeneratorStats;
+  previewRows: UrlOutputRow[];
   issues: ProcessingIssue[];
   detectedTables: DetectedTable[];
 };
