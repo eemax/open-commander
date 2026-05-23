@@ -928,12 +928,12 @@ function parseBaseUrl(order: OrderRecord):
           fileRole: "orders",
           rowNumber: order.sourceRowNumber,
           field: "base_url",
-          message: "Base URL must use a domain like example.com.",
+          message: "Base URL must use a domain like id.example.com.",
         },
       };
     }
 
-    if (isExampleDotComPlaceholder(parsed.hostname)) {
+    if (isTemplatePlaceholderDomain(parsed.hostname)) {
       return {
         ok: false,
         issue: {
@@ -941,7 +941,7 @@ function parseBaseUrl(order: OrderRecord):
           fileRole: "orders",
           rowNumber: order.sourceRowNumber,
           field: "base_url",
-          message: "Base URL cannot use the template placeholder example.com.",
+          message: "Base URL cannot use the template placeholder id.example.com.",
         },
       };
     }
@@ -986,7 +986,7 @@ function parseBaseUrl(order: OrderRecord):
         fileRole: "orders",
         rowNumber: order.sourceRowNumber,
         field: "base_url",
-        message: "Base URL must be a valid URL like https://example.com.",
+        message: "Base URL must be a valid URL like https://id.example.com.",
       },
     };
   }
@@ -1009,13 +1009,8 @@ function isLikelyDomainName(hostname: string): boolean {
   );
 }
 
-function isExampleDotComPlaceholder(hostname: string): boolean {
-  const normalizedHostname = hostname.toLowerCase();
-
-  return (
-    normalizedHostname === "example.com" ||
-    normalizedHostname.endsWith(".example.com")
-  );
+function isTemplatePlaceholderDomain(hostname: string): boolean {
+  return hostname.toLowerCase() === "id.example.com";
 }
 
 function isValidDomainLabel(label: string | undefined): boolean {

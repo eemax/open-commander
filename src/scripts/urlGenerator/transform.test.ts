@@ -509,7 +509,7 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 5,
           field: "base_url",
-          message: "Base URL must use a domain like example.com.",
+          message: "Base URL must use a domain like id.example.com.",
         }),
         expect.objectContaining({
           severity: "error",
@@ -522,39 +522,35 @@ describe("URL generator transform", () => {
     );
   });
 
-  it("rejects the example.com template placeholder", () => {
+  it("rejects the id.example.com template placeholder", () => {
     const output = buildUrls(
       [
         {
           purchase_order: "1001",
           product: "P1",
-          base_url: "https://example.com",
+          base_url: "https://id.example.com",
           sourceRowNumber: 2,
         },
         {
           purchase_order: "1002",
           product: "P1",
-          base_url: "https://www.example.com/",
+          base_url: "https://example.com/",
           sourceRowNumber: 3,
         },
       ],
       [identifierRecord({ product: "P1", ean: "1234567890123", sourceRowNumber: 2 })],
     );
 
-    expect(output.urls).toEqual([]);
+    expect(output.urls.map((row) => row.url)).toEqual([
+      "https://example.com/01/1234567890123/10/1002",
+    ]);
     expect(output.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           severity: "error",
           rowNumber: 2,
           field: "base_url",
-          message: "Base URL cannot use the template placeholder example.com.",
-        }),
-        expect.objectContaining({
-          severity: "error",
-          rowNumber: 3,
-          field: "base_url",
-          message: "Base URL cannot use the template placeholder example.com.",
+          message: "Base URL cannot use the template placeholder id.example.com.",
         }),
       ]),
     );
@@ -606,7 +602,7 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 2,
           field: "base_url",
-          message: "Base URL must use a domain like example.com.",
+          message: "Base URL must use a domain like id.example.com.",
         }),
       ]),
     );

@@ -1,17 +1,22 @@
 # Agent Handoff Notes
 
-This file is for future coding agents working on Open Commander.
+This is the working checklist for future coding agents. The README is the user-facing project documentation; keep this file focused on implementation context, invariants, and traps.
 
-## Current State
+## Snapshot
 
-Open Commander is a browser-only Excel script runner hosted as static assets on Cloudflare. The current Cloudflare setup uses Workers static assets through Wrangler because the project requires a deploy command. There is no backend, no database, no file storage, and no custom Cloudflare Worker API for the current workflow.
+Open Commander is a Vite/React/TypeScript app that runs small Excel scripts entirely in the browser. It is deployed as Cloudflare Workers static assets from `dist`.
 
-The first screen is a script selector. The only implemented script is URL Generator:
+There is no backend, database, object storage, KV, file upload, or custom Worker API in the current product. Source workbooks are read by browser APIs and processed locally.
 
-- input: one orders `.xlsx` workbook and one EAN/UPC `.xlsx` workbook
-- output: one generated `.xlsx` workbook
-- processing location: browser Web Worker, with progress stages, one automatic retry, and a user-triggered main-thread compatibility mode for processor/runtime failures
-- successful result UI: summary, first five generated URL rows, detected headers, non-fatal issues, and output download
+The only implemented script is URL Generator:
+
+- one orders `.xlsx` workbook
+- one EAN/UPC `.xlsx` workbook
+- one generated output `.xlsx` workbook
+- normal execution in a browser Web Worker
+- one automatic worker retry for runtime/processor failures
+- optional main-thread compatibility mode after retry failure
+- validation failures are row-level input issues and must not trigger retry/compatibility mode
 
 ## Commands
 
@@ -35,62 +40,153 @@ Preview: http://127.0.0.1:4173/
 
 Vite may choose another port if the default is busy.
 
-## Important Files
+## Change Map
 
-```text
-src/app/App.tsx
-src/app/runInWorker.ts
-src/workers/scriptRunner.worker.ts
-src/scripts/registry.ts
-src/scripts/urlGenerator/excel.ts
-src/scripts/urlGenerator/transform.ts
-src/scripts/urlGenerator/headers.ts
-src/scripts/urlGenerator/fileRoles.ts
-src/scripts/urlGenerator/types.ts
-src/scripts/urlGenerator/*.test.ts
-src/styles.css
-public/templates/*.xlsx
-```
+- `src/app/App.tsx`: current UI, file selection, role selection, worker retry, compatibility mode, result/error rendering. It is generic at the first script-selector screen but URL-Generator-specific after a script is opened.
+- `src/app/runInWorker.ts`: creates the browser worker, tracks last reported stage, maps worker responses into `WorkerRunError` or `WorkerUnexpectedError`.
+- `src/workers/scriptRunner.worker.ts`: worker entry point and script routing. Dynamic-imports the Excel engine.
+- `src/scripts/registry.ts`: script metadata shown on the selector screen.
+- `src/scripts/urlGenerator/types.ts`: shared URL Generator types, file limit, script ID, run stages.
+- `src/scripts/urlGenerator/excel.ts`: ExcelJS workbook read/write and fatal input issue boundary.
+- `src/scripts/urlGenerator/transform.ts`: pure business rules, validation, URL creation, sorting.
+- `src/scripts/urlGenerator/headers.ts`: header normalization, scoring, and table-layout detection.
+- `src/scripts/urlGenerator/fileRoles.ts`: filename role detection and output filename derivation.
+- `src/scripts/urlGenerator/*.test.ts`: transform, workbook, and filename-role coverage.
+- `public/templates/*.xlsx`: user-downloadable workbook templates. Edit with ExcelJS or a proper workbook tool, not plain text.
+- `src/styles.css`: app styling.
 
 ## Architecture Rules
 
-- Keep source file processing client-side unless the user explicitly asks for backend compute.
+- Keep workbook processing client-side unless the user explicitly changes the product requirements.
 - Keep business logic pure and testable outside ExcelJS.
-- Keep workbook IO in `excel.ts` or equivalent script-specific IO modules.
-- Keep Web Worker routing in `src/workers/scriptRunner.worker.ts`.
-- Keep processor/runtime failures separate from validation failures. Validation failures should show row-level input issues and should not trigger retry/compatibility mode.
+- Keep workbook IO in script-specific modules like `urlGenerator/excel.ts`.
+- Keep worker routing in `src/workers/scriptRunner.worker.ts`.
 - Keep script metadata in `src/scripts/registry.ts`.
-- Keep the top-level script selector generic; put script-specific inputs behind the selected script's workspace.
-- Do not introduce storage for uploaded files unless the user explicitly changes the product requirements.
+- Keep validation failures separate from runtime/processor failures.
+- Do not add storage or upload flows for source files unless explicitly requested.
 - Preserve the 5 MB per-file limit unless the user changes it.
+- Prefer focused tests around transform behavior first, then workbook-level tests for ExcelJS read/write contracts.
 
-## URL Generator Behavior
+## Naming Gotchas
 
-The old Python script was ported and improved. Preserve these behaviors unless asked otherwise:
+- The internal file role is still `eans` even though the workbook is user-facing EAN/UPC. Do not casually rename this role; it touches UI selection, worker payloads, tests, file role detection, and output naming.
+- `EanRecord` now represents an EAN/UPC identifier row. The name is legacy.
+- Internal `GtinMode` uses `"upc_only"`, but output workbook cells serialize it as `upc only`.
+- `identifier_type` is `"ean"` or `"upc"`. `identifier` is the actual value used in the generated URL.
+- The old `ean_row_number` output column has been replaced by `identifier_row_number`.
 
-- Accepts flexible headers for orders and EAN/UPC workbooks.
-- Detects a likely header row near the top of the sheet.
-- Does not fall back to positional columns. If no recognizable header row is found, the run fails with input issues.
-- Skips incomplete rows during extraction and reports them as fatal input issues.
-- Matches products case-insensitively and ignores spaces, dots, underscores, and hyphens.
-- Allows one purchase order to contain multiple products. Duplicate normalized purchase order/product combinations are rejected.
-- Treats EAN as the default identifier mode. UPC mode is row-level and must be explicit when UPC-only URLs are needed.
-- Does not resolve `gtin` as an identifier header because it is ambiguous.
-- Rejects duplicate EAN, duplicate UPC, and duplicate SKU values.
-- Rejects invalid Base URLs. Base URLs must be `https://` root domains, must not include `www.`, paths, query strings, hashes, credentials, or the `example.com` template placeholder.
-- For each valid order row, creates one URL row for every EAN/UPC row that matches the order product.
-- Creates URLs with this shape:
+## URL Generator Invariants
+
+Preserve these behaviors unless the user asks to change them:
+
+- Accept flexible headers for orders and EAN/UPC workbooks.
+- Scan near the top of the sheet for a likely header row.
+- Do not fall back to positional columns.
+- Trim leading/trailing whitespace from all cell text and strip leading Excel apostrophes.
+- Report missing required columns and empty required cells as fatal input issues.
+- Match products case-insensitively and ignore spaces, dots, underscores, and hyphens.
+- Allow one purchase order to contain multiple products.
+- Reject duplicate normalized purchase order/product combinations.
+- Reject duplicate EAN, duplicate UPC, and duplicate SKU values.
+- Treat EAN as the default identifier mode.
+- Do not accept `gtin` as an identifier header.
+- Require explicit `upc only` mode when only UPC exists.
+- Require both EAN and UPC values for `upc` mode.
+- Warn, but continue, when `upc only` mode also includes an EAN value.
+- Preserve simple zero-padded numeric formats when ExcelJS exposes the number format.
+- Validate Base URLs even for unmatched order products.
+- Create one output URL row for every matching order/product and identifier row.
+- Sort output by purchase order, normalized product, product, SKU, identifier type, then identifier.
+- Stop before writing an output workbook if any fatal input errors exist.
+- Include `previewRows` as the first five generated URL rows on successful runs.
+
+## Base URL Rules
+
+Base URLs must be `https://` root domains. They must not include:
+
+- `www.`
+- paths
+- query strings
+- hashes
+- usernames or passwords
+- the template placeholder domain `id.example.com`
+
+Trailing slashes are allowed and removed. `example.com` itself is allowed; only `id.example.com` is the rejected template placeholder.
+
+## Header Detection Notes
+
+Header matching normalizes case, accents, punctuation, separators, and common symbols. Header rows are selected from the first 15 rows.
+
+A likely header row currently needs at least two matched known columns. This can include optional columns. That behavior is intentional because it lets the app detect a partial EAN/UPC header row and then report a missing required `product` column instead of falling all the way back to "no recognizable header row."
+
+## Failure Model
+
+Validation path:
+
+```text
+excel.ts reads workbook rows
+  -> transform extracts records and issues
+  -> FatalInputIssueError is thrown for severity:error issues
+  -> worker reports kind: input-issues
+  -> UI shows row-level fixes, no retry, no compatibility mode
+```
+
+Runtime path:
+
+```text
+worker creation/message/import/read/write failure
+  -> WorkerUnexpectedError or WorkerRunError(kind: runtime)
+  -> UI rereads files and retries once
+  -> after retry failure, UI offers compatibility mode
+  -> after compatibility failure, UI suggests trying Google Chrome
+```
+
+Keep user-facing failure copy browser-neutral unless the app explicitly detects a browser. Technical details may include `navigator.userAgent`.
+
+## Output Workbook Contract
+
+Successful runs always write:
+
+- `urls`
+- `summary`
+
+Successful runs may also write:
+
+- `unmatched_orders`
+- `input_issues`
+
+The `urls` sheet columns are:
+
+```text
+purchase_order
+product
+sku
+identifier_type
+identifier
+ean
+upc
+mode
+base_url
+url
+order_row_number
+identifier_row_number
+```
+
+Generated URL shape:
 
 ```text
 {base_url}/01/{identifier}/10/{purchase_order}
 ```
 
-- Writes `urls`, `summary`, and optional `unmatched_orders` / `input_issues` sheets for successful runs. Fatal input errors stop the run before an output workbook is created.
-- Exposes `previewRows` on successful run results for the first five generated URL rows shown in the UI.
+## Template Notes
+
+- Orders template base URL should remain `https://id.example.com`; validation rejects it in uploaded data so users cannot accidentally ship the placeholder.
+- EAN/UPC template should show all supported modes: blank EAN default, `upc`, and `upc only`.
+- Keep identifier template columns formatted as text when needed so leading zeroes survive.
 
 ## Before Finishing Changes
 
-Run:
+Always run:
 
 ```sh
 npm test
@@ -103,11 +199,11 @@ For UI changes, also run:
 npm run dev
 ```
 
-Then open the printed local URL and smoke-test upload, role selection, run, and download with small `.xlsx` workbooks.
+Then open the printed local URL and smoke-test upload, role selection, run, and download with small `.xlsx` workbooks. If browser automation is unavailable, say so in the final response.
 
-## Cloudflare Deployment
+## Deployment
 
-Deployment settings:
+Cloudflare Workers static-assets settings:
 
 ```text
 Build command: npm run build
@@ -116,11 +212,12 @@ Non-production branch deploy command: npm run deploy:preview
 Root directory: /
 ```
 
-`wrangler.jsonc` deploys the built `dist` directory as static assets with single-page app fallback. No Cloudflare bindings are required.
+`wrangler.jsonc` uses `assets.directory = "./dist"` with single-page app fallback. No bindings are required.
 
 ## Things To Watch
 
-- ExcelJS browser bundles can be large. Keep an eye on build output if adding dependencies.
-- Tests run in Node, but the production code runs in a browser worker. Keep workbook-level tests and production builds green.
-- `App.tsx` has a generic script selector, but the opened workspace currently assumes URL Generator's two-workbook input shape. Adding scripts with different inputs likely requires per-script workspace components.
-- User-facing failure copy should stay browser-neutral unless the app explicitly detects the browser. Technical error details may include `navigator.userAgent`.
+- ExcelJS browser bundles are large. Build output will warn about chunk size.
+- Tests run in Node, but production workbook processing runs in a browser worker.
+- `App.tsx` will need a script-specific workspace split before adding scripts with a different input shape.
+- The CSP in `public/_headers` must continue to allow the bundled worker to run under `worker-src 'self'`.
+- Browser/runtime failures and validation failures deliberately have different recovery paths; do not collapse them into one generic error.
