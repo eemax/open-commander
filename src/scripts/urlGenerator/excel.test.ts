@@ -228,6 +228,67 @@ describe("URL generator workbook runner", () => {
     });
   });
 
+  it("returns all fatal input issues collected in the validation pass", async () => {
+    const ordersBuffer = await createWorkbookBuffer([
+      ["Purchase Order", "Product Code", "Base URL"],
+      ["", "ABC-1", "https://example.test/"],
+      ["PO 100", "ABC-1", "https://id.example.com/"],
+      ["po 100", "abc 1", "https://example.test/"],
+    ]);
+    const eansBuffer = await createWorkbookBuffer([
+      ["Product", "EAN", "UPC", "Mode", "SKU"],
+      ["abc 1", "1111111111111", "111111111111", "gtin", "SKU-1"],
+      ["abc 1", "2222222222222", "222222222222", "upc", "SKU-2"],
+      ["xyz 9", "3333333333333", "222222222222", "upc", "SKU-3"],
+    ]);
+
+    const runPromise = runUrlGenerator([
+      {
+        role: "orders",
+        fileName: "spring_orders.xlsx",
+        buffer: ordersBuffer,
+      },
+      {
+        role: "eans",
+        fileName: "spring_eans.xlsx",
+        buffer: eansBuffer,
+      },
+    ]);
+
+    await expect(runPromise).rejects.toBeInstanceOf(FatalInputIssueError);
+    await expect(runPromise).rejects.toMatchObject({
+      issues: expect.arrayContaining([
+        expect.objectContaining({
+          rowNumber: 2,
+          field: "purchase_order",
+          message: 'Mandatory field "Purchase order" is empty.',
+        }),
+        expect.objectContaining({
+          rowNumber: 4,
+          field: "purchase_order",
+          message: expect.stringContaining(
+            'Duplicate purchase order/product combination "po 100" + "abc 1"',
+          ),
+        }),
+        expect.objectContaining({
+          rowNumber: 3,
+          field: "base_url",
+          message: "Base URL cannot use the template placeholder id.example.com.",
+        }),
+        expect.objectContaining({
+          rowNumber: 2,
+          field: "mode",
+          message: 'Mode must be "ean", "upc", or "upc only".',
+        }),
+        expect.objectContaining({
+          rowNumber: 4,
+          field: "upc",
+          message: 'Duplicate UPC "222222222222" also appears on row 3.',
+        }),
+      ]),
+    });
+  });
+
   it("fails the run when purchase order and product combinations are duplicated", async () => {
     const ordersBuffer = await createWorkbookBuffer([
       ["Purchase Order", "Product Code", "Base URL"],

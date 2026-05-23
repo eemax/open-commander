@@ -179,7 +179,11 @@ export function extractOrders(
 
   return {
     records: orderRecords,
-    issues: [...issues, ...validateDuplicateOrders(orderRecords, context)],
+    issues: [
+      ...issues,
+      ...validateDuplicateOrders(orderRecords, context),
+      ...validateOrderBaseUrls(orderRecords, context),
+    ],
     detectedTable,
   };
 }
@@ -801,6 +805,21 @@ function validateDuplicateOrders(
   }
 
   return issues;
+}
+
+function validateOrderBaseUrls(
+  records: OrderRecord[],
+  context: FileContext,
+): ProcessingIssue[] {
+  return records.flatMap((record) => {
+    const result = parseBaseUrl(record);
+
+    if (result.ok) {
+      return result.issues.map((issue) => withContext(issue, context));
+    }
+
+    return [withContext(result.issue, context)];
+  });
 }
 
 function validateDuplicateEans(

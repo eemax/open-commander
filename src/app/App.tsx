@@ -72,6 +72,9 @@ const emptySelection: RoleSelection = {
   eansId: "",
 };
 
+const MAX_FATAL_ISSUES_SHOWN = 50;
+const MAX_SUCCESS_ISSUES_SHOWN = 8;
+
 export function App() {
   const [activeScriptId, setActiveScriptId] = useState<string | null>(null);
   const [files, setFiles] = useState<LocalWorkbookFile[]>([]);
@@ -811,7 +814,8 @@ function RunFailureView({
   isRunning: boolean;
   onRunCompatibilityMode?: () => void;
 }) {
-  const shownIssues = failure.issues.slice(0, 8);
+  const shownIssues = failure.issues.slice(0, MAX_FATAL_ISSUES_SHOWN);
+  const hiddenIssueCount = failure.issues.length - shownIssues.length;
 
   return (
     <div className="run-failure" role="alert">
@@ -853,16 +857,22 @@ function RunFailureView({
         <div className="issues">
           <div className="issues-heading">
             <AlertTriangle aria-hidden="true" size={18} />
-            <h3>Rows to fix</h3>
+            <h3>
+              Rows to fix{" "}
+              <span>
+                {hiddenIssueCount > 0
+                  ? `${shownIssues.length} of ${failure.issues.length}`
+                  : failure.issues.length}
+              </span>
+            </h3>
           </div>
           <IssueTable issues={shownIssues} />
-          {failure.issues.length > shownIssues.length && (
+          {hiddenIssueCount > 0 ? (
             <p className="issue-footnote">
-              {failure.issues.length - shownIssues.length} more error
-              {failure.issues.length - shownIssues.length === 1 ? "" : "s"} to
-              fix.
+              Showing the first {shownIssues.length} input errors. Fix these and
+              run again to continue validation.
             </p>
-          )}
+          ) : null}
         </div>
       ) : failure.details ? (
         <div className="failure-details">
@@ -875,7 +885,7 @@ function RunFailureView({
 }
 
 function ResultView({ result }: { result: UrlGeneratorRunResult }) {
-  const shownIssues = result.issues.slice(0, 8);
+  const shownIssues = result.issues.slice(0, MAX_SUCCESS_ISSUES_SHOWN);
   const issueSummary = summarizeIssues(result.issues);
   const successSummary = formatSuccessSummary(result);
 
@@ -1293,12 +1303,24 @@ function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
       message.includes("required column") ||
       message.includes("no usable data rows"),
   );
-  const hasEanFormatIssue = messages.some(
+  const hasIdentifierModeIssue =
+    fields.has("mode") ||
+    messages.some(
+      (message) =>
+        message.includes("mode") ||
+        message.includes("upc-only") ||
+        message.includes("upc only"),
+    );
+  const hasIdentifierFormatIssue = messages.some(
     (message) =>
-      message.includes("ean contains") || message.includes("ean must"),
+      message.includes("ean contains") ||
+      message.includes("upc contains") ||
+      message.includes("ean length") ||
+      message.includes("upc length"),
   );
   const steps = [
     "Edit the listed rows in the source workbook, save the file, then upload the corrected workbook.",
+    "The rows below are the errors Open Commander can validate in this pass. After these are fixed, a later run may find more.",
   ];
 
   if (hasMissingRequiredIssue) {
@@ -1319,7 +1341,13 @@ function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
     );
   }
 
-  if (hasEanFormatIssue) {
+  if (hasIdentifierModeIssue) {
+    steps.push(
+      'For UPC-only URLs, set mode to "upc only". For UPC mode, include both EAN and UPC values.',
+    );
+  }
+
+  if (hasIdentifierFormatIssue) {
     steps.push(
       "EAN and UPC values must contain digits only. Format source columns as text when leading zeroes matter.",
     );

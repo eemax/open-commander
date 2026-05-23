@@ -158,6 +158,8 @@ Fatal input issues stop the run before an output workbook is created. Examples i
 - invalid EAN/UPC mode combinations
 - invalid Base URLs
 
+When a run fails, the UI shows the input errors collected in the current validation pass, up to the first 50 rows to fix. Base URL errors are collected with the orders workbook even when the EAN/UPC workbook also has fatal validation errors.
+
 Non-fatal issues are written to the output workbook when the run can still complete. Examples include:
 
 - EAN or UPC values with non-numeric characters

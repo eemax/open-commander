@@ -95,10 +95,12 @@ Preserve these behaviors unless the user asks to change them:
 - Warn, but continue, when `upc only` mode also includes an EAN value.
 - Preserve simple zero-padded numeric formats when ExcelJS exposes the number format.
 - Validate Base URLs even for unmatched order products.
+- Collect Base URL errors during orders extraction so they appear alongside EAN/UPC validation errors.
 - Create one output URL row for every matching order/product and identifier row.
 - Sort output by purchase order, normalized product, product, SKU, identifier type, then identifier.
 - Stop before writing an output workbook if any fatal input errors exist.
 - Include `previewRows` as the first five generated URL rows on successful runs.
+- On failed validation runs, the UI shows up to the first 50 fatal input issues from the current validation pass.
 
 ## Base URL Rules
 

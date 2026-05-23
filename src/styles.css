@@ -993,6 +993,18 @@ select:disabled {
   color: var(--warning);
 }
 
+.issues-heading h3 {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.issues-heading h3 span {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
 .issue-table {
   display: grid;
   overflow: hidden;
