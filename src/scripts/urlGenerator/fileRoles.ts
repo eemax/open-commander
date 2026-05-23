@@ -13,12 +13,23 @@ export type FileRoleDetection = {
 const ROLE_ORDER: FileRole[] = ["eans", "orders"];
 
 const TOKEN_ROLE_TERMS: Record<FileRole, Set<string>> = {
-  eans: new Set(["ean", "eans", "barcode", "barcodes", "gtin", "gtins", "upc"]),
+  eans: new Set([
+    "ean",
+    "eans",
+    "barcode",
+    "barcodes",
+    "gtin",
+    "gtins",
+    "upc",
+    "upcs",
+    "identifier",
+    "identifiers",
+  ]),
   orders: new Set(["order", "orders", "po", "pos"]),
 };
 
 const COMPACT_ROLE_TERMS: Record<FileRole, string[]> = {
-  eans: ["eans", "barcodes", "gtins"],
+  eans: ["eans", "barcodes", "gtins", "upcs", "identifiers"],
   orders: ["purchaseorder", "purchaseorders", "orders"],
 };
 
@@ -27,9 +38,13 @@ const ROLE_REMOVE_PATTERNS: Record<FileRole, RegExp[]> = {
     /(^|[\s_.-])eans?($|[\s_.-])/gi,
     /(^|[\s_.-])barcodes?($|[\s_.-])/gi,
     /(^|[\s_.-])gtins?($|[\s_.-])/gi,
+    /(^|[\s_.-])upcs?($|[\s_.-])/gi,
+    /(^|[\s_.-])identifiers?($|[\s_.-])/gi,
     /eans$/i,
     /barcodes?$/i,
     /gtins?$/i,
+    /upcs?$/i,
+    /identifiers?$/i,
   ],
   orders: [
     /(^|[\s_.-])purchase[\s_.-]*orders?($|[\s_.-])/gi,

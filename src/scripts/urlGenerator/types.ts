@@ -62,19 +62,31 @@ export type OrderRecord = {
 export type EanRecord = {
   product: string;
   ean: string;
+  upc: string;
   sku: string;
+  mode: GtinMode;
+  identifier: string;
+  identifier_type: GtinType;
   sourceRowNumber: number;
 };
+
+export type GtinMode = "ean" | "upc" | "upc_only";
+
+export type GtinType = "ean" | "upc";
 
 export type UrlOutputRow = {
   purchase_order: string;
   product: string;
   sku: string;
+  identifier_type: GtinType;
+  identifier: string;
   ean: string;
+  upc: string;
+  mode: GtinMode;
   base_url: string;
   url: string;
   order_row_number: number;
-  ean_row_number: number;
+  identifier_row_number: number;
 };
 
 export type UnmatchedOrderRow = {

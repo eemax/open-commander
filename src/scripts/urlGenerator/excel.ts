@@ -11,6 +11,7 @@ import {
   XLSX_MIME_TYPE,
   URL_GENERATOR_SCRIPT_ID,
   type DetectedTable,
+  type GtinMode,
   type ProcessingIssue,
   type RunStageHandler,
   type UnmatchedOrderRow,
@@ -44,7 +45,7 @@ export async function runUrlGenerator(
   const eansFile = files.find((file) => file.role === "eans");
 
   if (!ordersFile || !eansFile) {
-    throw new Error("Both an orders workbook and an EAN workbook are required.");
+    throw new Error("Both an orders workbook and an EAN/UPC workbook are required.");
   }
 
   options.onStage?.("reading-orders-workbook");
@@ -274,16 +275,22 @@ async function writeOutputWorkbook(input: {
   workbook.created = new Date();
   workbook.modified = new Date();
 
+  const urlRows = input.urls.map(formatUrlOutputRow);
+
   addRowsSheet(workbook, "urls", [
     "purchase_order",
     "product",
     "sku",
+    "identifier_type",
+    "identifier",
     "ean",
+    "upc",
+    "mode",
     "base_url",
     "url",
     "order_row_number",
-    "ean_row_number",
-  ], input.urls);
+    "identifier_row_number",
+  ], urlRows);
 
   if (input.unmatchedOrders.length > 0) {
     addRowsSheet(workbook, "unmatched_orders", [
@@ -318,6 +325,17 @@ async function writeOutputWorkbook(input: {
 
   const written = await workbook.xlsx.writeBuffer();
   return toArrayBuffer(written);
+}
+
+function formatUrlOutputRow(row: UrlOutputRow): Record<string, string | number> {
+  return {
+    ...row,
+    mode: formatModeForOutput(row.mode),
+  };
+}
+
+function formatModeForOutput(mode: GtinMode): string {
+  return mode === "upc_only" ? "upc only" : mode;
 }
 
 function addRowsSheet<T extends Record<string, unknown>>(
@@ -385,8 +403,8 @@ function buildSummaryRows(input: SummaryInput): SummaryRow[] {
     {
       section: "Run overview",
       item: "URL format",
-      value: "{base_url}/01/{ean}/10/{purchase_order}",
-      detail: "EAN and purchase order values are URL path encoded.",
+      value: "{base_url}/01/{identifier}/10/{purchase_order}",
+      detail: "Identifier and purchase order values are URL path encoded.",
     },
     {
       section: "Results",
@@ -402,15 +420,15 @@ function buildSummaryRows(input: SummaryInput): SummaryRow[] {
     },
     {
       section: "Results",
-      item: "EAN rows read",
+      item: "EAN/UPC rows read",
       value: input.eansRead,
-      detail: "Usable EAN rows after header detection, required-cell checks, and duplicate EAN/SKU validation.",
+      detail: "Usable EAN/UPC rows after header detection, mode checks, required-cell checks, and duplicate EAN/UPC/SKU validation.",
     },
     {
       section: "Results",
       item: "Unmatched orders",
       value: input.unmatchedOrders.length,
-      detail: "Unique order/product/base URL combinations with no matching EAN product.",
+      detail: "Unique order/product/base URL combinations with no matching EAN/UPC product.",
     },
     {
       section: "Source tables",
@@ -420,14 +438,14 @@ function buildSummaryRows(input: SummaryInput): SummaryRow[] {
     },
     {
       section: "Source tables",
-      item: "EAN workbook",
+      item: "EAN/UPC workbook",
       value: eansTable?.fileName ?? "",
       detail: formatDetectedTable(eansTable),
     },
   ];
 
   rows.push(...formatDetectedHeaderRows("Orders", ordersTable));
-  rows.push(...formatDetectedHeaderRows("EANs", eansTable));
+  rows.push(...formatDetectedHeaderRows("EAN/UPC", eansTable));
 
   if (input.issues.length > 0) {
     rows.push({
@@ -459,7 +477,7 @@ function formatDetectedTable(table?: DetectedTable): string {
 }
 
 function formatDetectedHeaderRows(
-  role: "Orders" | "EANs",
+  role: "Orders" | "EAN/UPC",
   table?: DetectedTable,
 ): SummaryRow[] {
   if (!table) {

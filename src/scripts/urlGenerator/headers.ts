@@ -110,8 +110,7 @@ function findLikelyHeaderRow<TKey extends string>(
 ): number | null {
   const requiredSpecs = specs.filter((spec) => spec.required);
   const scanLimit = Math.min(rows.length, 15);
-  let best: { rowIndex: number; score: number; matchedRequired: number } | null =
-    null;
+  let best: { rowIndex: number; score: number } | null = null;
 
   for (let rowIndex = 0; rowIndex < scanLimit; rowIndex += 1) {
     const row = rows[rowIndex] ?? [];
@@ -122,9 +121,6 @@ function findLikelyHeaderRow<TKey extends string>(
       .filter((spec) => !spec.required)
       .map((spec) => bestHeaderColumnForSpec(row, spec, new Set()));
     const candidates = [...requiredCandidates, ...optionalCandidates];
-    const matchedRequired = requiredCandidates.filter(
-      (candidate) => candidate && candidate.score >= 2,
-    ).length;
     const matchedColumns = candidates.filter(
       (candidate) => candidate && candidate.score >= 2,
     ).length;
@@ -134,11 +130,10 @@ function findLikelyHeaderRow<TKey extends string>(
     );
 
     if (
-      matchedRequired >= 1 &&
       matchedColumns >= Math.min(2, specs.length) &&
       (!best || score > best.score)
     ) {
-      best = { rowIndex, score, matchedRequired };
+      best = { rowIndex, score };
     }
   }
 

@@ -16,6 +16,10 @@ describe("URL generator file role detection", () => {
       role: "eans",
       baseName: "spring",
     });
+    expect(detectRoleFromFileName("spring_upcs.xlsx")).toMatchObject({
+      role: "eans",
+      baseName: "spring",
+    });
   });
 
   it("derives matching output names after removing role words", () => {

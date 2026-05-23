@@ -117,7 +117,7 @@ export function App() {
     }
 
     if (!selectedFiles.eans) {
-      messages.push("Choose an EAN workbook.");
+      messages.push("Choose an EAN/UPC workbook.");
     }
 
     if (
@@ -125,7 +125,7 @@ export function App() {
       selection.eansId &&
       selection.ordersId === selection.eansId
     ) {
-      messages.push("Orders and EANs must use different workbooks.");
+      messages.push("Orders and EAN/UPC data must use different workbooks.");
     }
 
     return messages;
@@ -205,13 +205,13 @@ export function App() {
   async function runSelectedScript() {
     if (!selectedFiles.orders || !selectedFiles.eans) {
       setRunFailure(null);
-      setError("Choose one orders workbook and one EAN workbook.");
+      setError("Choose one orders workbook and one EAN/UPC workbook.");
       return;
     }
 
     if (selectedFiles.orders.id === selectedFiles.eans.id) {
       setRunFailure(null);
-      setError("Orders and EANs must use different workbooks.");
+      setError("Orders and EAN/UPC data must use different workbooks.");
       return;
     }
 
@@ -263,13 +263,13 @@ export function App() {
   async function runCompatibilityMode() {
     if (!selectedFiles.orders || !selectedFiles.eans) {
       setRunFailure(null);
-      setError("Choose one orders workbook and one EAN workbook.");
+      setError("Choose one orders workbook and one EAN/UPC workbook.");
       return;
     }
 
     if (selectedFiles.orders.id === selectedFiles.eans.id) {
       setRunFailure(null);
-      setError("Orders and EANs must use different workbooks.");
+      setError("Orders and EAN/UPC data must use different workbooks.");
       return;
     }
 
@@ -548,7 +548,7 @@ export function App() {
                     download
                   >
                     <Download aria-hidden="true" size={16} />
-                    <span>EAN template</span>
+                    <span>EAN/UPC template</span>
                   </a>
                 </div>
 
@@ -621,7 +621,7 @@ export function App() {
                     </select>
                   </label>
                   <label>
-                    <span>EAN workbook</span>
+                    <span>EAN/UPC workbook</span>
                     <select
                       value={selection.eansId}
                       disabled={isRunning}
@@ -906,7 +906,7 @@ function ResultView({ result }: { result: UrlGeneratorRunResult }) {
       <div className="stat-grid">
         <Stat label="URLs" value={result.stats.urlsCreated} />
         <Stat label="Orders" value={result.stats.ordersRead} />
-        <Stat label="EANs" value={result.stats.eansRead} />
+        <Stat label="EAN/UPC" value={result.stats.eansRead} />
         <Stat label="Unmatched" value={result.stats.unmatchedOrders} />
       </div>
 
@@ -966,18 +966,20 @@ function ResultPreview({ rows }: { rows: UrlGeneratorRunResult["previewRows"] })
           <span>Purchase order</span>
           <span>Product</span>
           <span>SKU</span>
-          <span>EAN</span>
+          <span>Type</span>
+          <span>Identifier</span>
           <span>URL</span>
         </div>
         {rows.map((row) => (
           <div
             className="preview-row"
-            key={`${row.purchase_order}-${row.product}-${row.ean}`}
+            key={`${row.purchase_order}-${row.product}-${row.identifier}`}
           >
             <span>{row.purchase_order}</span>
             <span>{row.product}</span>
             <span>{row.sku || "-"}</span>
-            <span>{row.ean}</span>
+            <span>{formatIdentifierType(row.identifier_type)}</span>
+            <span>{row.identifier}</span>
             <span>{row.url}</span>
           </div>
         ))}
@@ -1066,7 +1068,7 @@ const runProgressSteps = [
   "Start processor",
   "Load Excel",
   "Read orders",
-  "Read EANs",
+  "Read EAN/UPC",
   "Build URLs",
   "Write workbook",
 ];
@@ -1113,18 +1115,24 @@ function runProgressIndex(status: string): number {
 function formatSuccessSummary(result: UrlGeneratorRunResult): string {
   const urls = result.stats.urlsCreated.toLocaleString();
   const orders = result.stats.ordersRead.toLocaleString();
-  const eans = result.stats.eansRead.toLocaleString();
+  const identifiers = result.stats.eansRead.toLocaleString();
   const unmatched = result.stats.unmatchedOrders;
   const unmatchedText =
     unmatched > 0
       ? ` ${unmatched.toLocaleString()} order${
           unmatched === 1 ? " has" : "s have"
-        } no matching EAN product.`
-      : " Every order matched at least one EAN product.";
+        } no matching EAN/UPC product.`
+      : " Every order matched at least one EAN/UPC product.";
 
   return `Created ${urls} URL${result.stats.urlsCreated === 1 ? "" : "s"} from ${orders} order row${
     result.stats.ordersRead === 1 ? "" : "s"
-  } and ${eans} EAN row${result.stats.eansRead === 1 ? "" : "s"}.${unmatchedText}`;
+  } and ${identifiers} EAN/UPC row${result.stats.eansRead === 1 ? "" : "s"}.${unmatchedText}`;
+}
+
+function formatIdentifierType(
+  type: UrlGeneratorRunResult["previewRows"][number]["identifier_type"],
+): string {
+  return type.toUpperCase();
 }
 
 function formatWorkerAttemptStatus(attempt: number, status: string): string {
@@ -1158,7 +1166,7 @@ function runStageLabel(stage: RunStageId): string {
     case "reading-orders-workbook":
       return "Reading orders workbook";
     case "reading-eans-workbook":
-      return "Reading EAN workbook";
+      return "Reading EAN/UPC workbook";
     case "building-urls":
       return "Building URLs";
     case "writing-output-workbook":
@@ -1295,7 +1303,7 @@ function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
 
   if (hasMissingRequiredIssue) {
     steps.push(
-      "Orders need purchase_order, product, and base_url. EANs need product and ean; sku is optional.",
+      "Orders need purchase_order, product, and base_url. EAN/UPC rows need product plus the required identifier columns for their mode.",
     );
   }
 
@@ -1307,13 +1315,13 @@ function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
 
   if (hasDuplicateIssue) {
     steps.push(
-      "Make duplicate purchase order/product combinations, EANs, and SKUs unique.",
+      "Make duplicate purchase order/product combinations, EANs, UPCs, and SKUs unique.",
     );
   }
 
   if (hasEanFormatIssue) {
     steps.push(
-      "EAN values must contain digits only. Format the source column as text when leading zeroes matter.",
+      "EAN and UPC values must contain digits only. Format source columns as text when leading zeroes matter.",
     );
   }
 
@@ -1376,5 +1384,5 @@ function formatBytes(bytes: number): string {
 }
 
 function roleLabel(role: FileRole): string {
-  return role === "orders" ? "Orders" : "EANs";
+  return role === "orders" ? "Orders" : "EAN/UPC";
 }

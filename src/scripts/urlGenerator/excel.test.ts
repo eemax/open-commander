@@ -39,7 +39,11 @@ describe("URL generator workbook runner", () => {
         purchase_order: "PO 100",
         product: "ABC-1",
         sku: "SKU-1",
+        identifier_type: "ean",
+        identifier: "1234567890123",
         ean: "1234567890123",
+        upc: "",
+        mode: "ean",
         url: "https://example.test/01/1234567890123/10/PO%20100",
       }),
     ]);
@@ -48,16 +52,20 @@ describe("URL generator workbook runner", () => {
       "purchase_order",
       "product",
       "sku",
+      "identifier_type",
+      "identifier",
       "ean",
+      "upc",
+      "mode",
       "base_url",
       "url",
       "order_row_number",
-      "ean_row_number",
+      "identifier_row_number",
     ]);
     expect(urlsSheet?.getCell("A2").value).toBe("PO 100");
-    expect(urlsSheet?.getCell("G2").value).toBe(2);
-    expect(urlsSheet?.getCell("H2").value).toBe(2);
-    expect(urlsSheet?.getCell("F2").value).toBe(
+    expect(urlsSheet?.getCell("K2").value).toBe(2);
+    expect(urlsSheet?.getCell("L2").value).toBe(2);
+    expect(urlsSheet?.getCell("J2").value).toBe(
       "https://example.test/01/1234567890123/10/PO%20100",
     );
     expect(summaryRows[0]).toEqual(["section", "item", "value", "detail"]);
@@ -66,7 +74,7 @@ describe("URL generator workbook runner", () => {
         [
           "Run overview",
           "URL format",
-          "{base_url}/01/{ean}/10/{purchase_order}",
+          "{base_url}/01/{identifier}/10/{purchase_order}",
           expect.stringContaining("URL path encoded"),
         ],
         [
@@ -89,7 +97,7 @@ describe("URL generator workbook runner", () => {
         ],
         [
           "Detected headers",
-          "EANs column C",
+          "EAN/UPC column C",
           "SKU",
           "Resolved to sku (SKU).",
         ],
@@ -131,9 +139,53 @@ describe("URL generator workbook runner", () => {
     await outputWorkbook.xlsx.load(result.outputBuffer);
     const urlsSheet = outputWorkbook.getWorksheet("urls");
 
-    expect(urlsSheet?.getCell("D2").value).toBe("0123456789012");
-    expect(urlsSheet?.getCell("F2").value).toBe(
+    expect(urlsSheet?.getCell("F2").value).toBe("0123456789012");
+    expect(urlsSheet?.getCell("J2").value).toBe(
       "https://example.test/01/0123456789012/10/PO%20100",
+    );
+  });
+
+  it("writes UPC-only rows with UPC identifiers and readable mode text", async () => {
+    const ordersBuffer = await createWorkbookBuffer([
+      ["Purchase Order", "Product Code", "Base URL"],
+      ["PO 100", "ABC-1", "https://example.test/"],
+    ]);
+    const eansBuffer = await createWorkbookBuffer([
+      ["Product", "UPC", "Mode", "SKU"],
+      ["abc 1", "123456789012", "upc only", "SKU-1"],
+    ]);
+
+    const result = await runUrlGenerator([
+      {
+        role: "orders",
+        fileName: "spring_orders.xlsx",
+        buffer: ordersBuffer,
+      },
+      {
+        role: "eans",
+        fileName: "spring_upcs.xlsx",
+        buffer: eansBuffer,
+      },
+    ]);
+
+    const outputWorkbook = new ExcelJS.Workbook();
+    await outputWorkbook.xlsx.load(result.outputBuffer);
+    const urlsSheet = outputWorkbook.getWorksheet("urls");
+
+    expect(result.previewRows[0]).toEqual(
+      expect.objectContaining({
+        identifier_type: "upc",
+        identifier: "123456789012",
+        ean: "",
+        upc: "123456789012",
+        mode: "upc_only",
+      }),
+    );
+    expect(urlsSheet?.getCell("D2").value).toBe("upc");
+    expect(urlsSheet?.getCell("E2").value).toBe("123456789012");
+    expect(urlsSheet?.getCell("H2").value).toBe("upc only");
+    expect(urlsSheet?.getCell("J2").value).toBe(
+      "https://example.test/01/123456789012/10/PO%20100",
     );
   });
 
@@ -235,10 +287,10 @@ describe("URL generator workbook runner", () => {
     const urlsSheet = outputWorkbook.getWorksheet("urls");
 
     expect(result.stats.urlsCreated).toBe(2);
-    expect(urlsSheet?.getCell("F2").value).toBe(
+    expect(urlsSheet?.getCell("J2").value).toBe(
       "https://example.test/01/1234567890123/10/PO%20100",
     );
-    expect(urlsSheet?.getCell("F3").value).toBe(
+    expect(urlsSheet?.getCell("J3").value).toBe(
       "https://example.test/01/2222222222222/10/PO%20100",
     );
   });

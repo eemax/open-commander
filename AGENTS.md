@@ -8,7 +8,7 @@ Open Commander is a browser-only Excel script runner hosted as static assets on 
 
 The first screen is a script selector. The only implemented script is URL Generator:
 
-- input: one orders `.xlsx` workbook and one EAN `.xlsx` workbook
+- input: one orders `.xlsx` workbook and one EAN/UPC `.xlsx` workbook
 - output: one generated `.xlsx` workbook
 - processing location: browser Web Worker, with progress stages, one automatic retry, and a user-triggered main-thread compatibility mode for processor/runtime failures
 - successful result UI: summary, first five generated URL rows, detected headers, non-fatal issues, and output download
@@ -68,19 +68,21 @@ public/templates/*.xlsx
 
 The old Python script was ported and improved. Preserve these behaviors unless asked otherwise:
 
-- Accepts flexible headers for orders and EAN workbooks.
+- Accepts flexible headers for orders and EAN/UPC workbooks.
 - Detects a likely header row near the top of the sheet.
 - Does not fall back to positional columns. If no recognizable header row is found, the run fails with input issues.
 - Skips incomplete rows during extraction and reports them as fatal input issues.
 - Matches products case-insensitively and ignores spaces, dots, underscores, and hyphens.
 - Allows one purchase order to contain multiple products. Duplicate normalized purchase order/product combinations are rejected.
-- Rejects duplicate EAN and duplicate SKU values.
+- Treats EAN as the default identifier mode. UPC mode is row-level and must be explicit when UPC-only URLs are needed.
+- Does not resolve `gtin` as an identifier header because it is ambiguous.
+- Rejects duplicate EAN, duplicate UPC, and duplicate SKU values.
 - Rejects invalid Base URLs. Base URLs must be `https://` root domains, must not include `www.`, paths, query strings, hashes, credentials, or the `example.com` template placeholder.
-- For each valid order row, creates one URL row for every EAN row that matches the order product.
+- For each valid order row, creates one URL row for every EAN/UPC row that matches the order product.
 - Creates URLs with this shape:
 
 ```text
-{base_url}/01/{ean}/10/{purchase_order}
+{base_url}/01/{identifier}/10/{purchase_order}
 ```
 
 - Writes `urls`, `summary`, and optional `unmatched_orders` / `input_issues` sheets for successful runs. Fatal input errors stop the run before an output workbook is created.

@@ -16,8 +16,8 @@ export const scripts: ScriptDefinition[] = [
   {
     id: URL_GENERATOR_SCRIPT_ID,
     name: "URL Generator",
-    inputLabel: "Orders + EANs",
-    summary: "Create URL workbooks from matching orders and EAN files.",
+    inputLabel: "Orders + EAN/UPC",
+    summary: "Create URL workbooks from matching orders and EAN/UPC files.",
     maxFileSizeBytes: MAX_FILE_SIZE_BYTES,
     acceptedExtensions: [".xlsx"],
   },

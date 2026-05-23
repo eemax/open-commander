@@ -5,6 +5,7 @@ import {
   extractEans,
   extractOrders,
 } from "./transform";
+import type { EanRecord } from "./types";
 
 const ordersContext = {
   fileRole: "orders" as const,
@@ -17,6 +18,31 @@ const eansContext = {
   fileName: "winter_eans.xlsx",
   sheetName: "EANs",
 };
+
+function identifierRecord(input: {
+  product: string;
+  ean?: string;
+  upc?: string;
+  sku?: string;
+  mode?: EanRecord["mode"];
+  sourceRowNumber: number;
+}): EanRecord {
+  const mode = input.mode ?? "ean";
+  const identifierType = mode === "ean" ? "ean" : "upc";
+  const ean = input.ean ?? "";
+  const upc = input.upc ?? "";
+
+  return {
+    product: input.product,
+    ean,
+    upc,
+    sku: input.sku ?? "",
+    mode,
+    identifier_type: identifierType,
+    identifier: identifierType === "ean" ? ean : upc,
+    sourceRowNumber: input.sourceRowNumber,
+  };
+}
 
 describe("URL generator transform", () => {
   it("detects flexible headers and creates encoded URL rows", () => {
@@ -48,11 +74,15 @@ describe("URL generator transform", () => {
     expect(output.urls).toEqual([
       {
         order_row_number: 3,
-        ean_row_number: 2,
+        identifier_row_number: 2,
         purchase_order: "PO 1",
         product: "ABC-123",
         base_url: "https://example.test",
+        identifier_type: "ean",
+        identifier: "0001112223334",
         ean: "0001112223334",
+        upc: "",
+        mode: "ean",
         sku: "S-1",
         url: "https://example.test/01/0001112223334/10/PO%201",
       },
@@ -193,13 +223,14 @@ describe("URL generator transform", () => {
     );
   });
 
-  it("flags duplicate EAN and SKU values", () => {
+  it("flags duplicate EAN, UPC, and SKU values", () => {
     const eans = extractEans(
       [
-        ["Product", "EAN", "SKU"],
-        ["P1", "1111111111111", "SKU-1"],
-        ["P2", "1111111111111", "SKU-2"],
-        ["P3", "2222222222222", "sku-1"],
+        ["Product", "EAN", "UPC", "Mode", "SKU"],
+        ["P1", "1111111111111", "999999999999", "upc", "SKU-1"],
+        ["P2", "1111111111111", "888888888888", "upc", "SKU-2"],
+        ["P3", "2222222222222", "999999999999", "upc", "SKU-3"],
+        ["P4", "3333333333333", "777777777777", "upc", "sku-1"],
       ],
       eansContext,
     );
@@ -215,8 +246,161 @@ describe("URL generator transform", () => {
         expect.objectContaining({
           severity: "error",
           rowNumber: 4,
+          field: "upc",
+          message: 'Duplicate UPC "999999999999" also appears on row 2.',
+        }),
+        expect.objectContaining({
+          severity: "error",
+          rowNumber: 5,
           field: "sku",
           message: 'Duplicate SKU "sku-1" also appears on row 2.',
+        }),
+      ]),
+    );
+  });
+
+  it("does not resolve GTIN as an identifier header", () => {
+    const eans = extractEans(
+      [
+        ["Product", "GTIN"],
+        ["P1", "1234567890123"],
+      ],
+      eansContext,
+    );
+
+    expect(eans.records).toHaveLength(0);
+    expect(eans.detectedTable.headerRowNumber).toBeNull();
+    expect(eans.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          message: "No recognizable header row was detected.",
+        }),
+      ]),
+    );
+  });
+
+  it("resolves EAN and UPC modes row by row", () => {
+    const eans = extractEans(
+      [
+        ["Product", "EAN", "UPC", "Mode", "SKU"],
+        ["P1", "1111111111111", "111111111111", "", "SKU-1"],
+        ["P2", "2222222222222", "222222222222", "upc", "SKU-2"],
+        ["P3", "3333333333333", "333333333333", "upc only", "SKU-3"],
+        ["P4", "", "444444444444", "upc only", "SKU-4"],
+      ],
+      eansContext,
+    );
+
+    expect(eans.records.map((record) => [
+      record.product,
+      record.mode,
+      record.identifier_type,
+      record.identifier,
+    ])).toEqual([
+      ["P1", "ean", "ean", "1111111111111"],
+      ["P2", "upc", "upc", "222222222222"],
+      ["P3", "upc_only", "upc", "333333333333"],
+      ["P4", "upc_only", "upc", "444444444444"],
+    ]);
+    expect(eans.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "warning",
+          rowNumber: 4,
+          field: "mode",
+          message: "UPC-only mode ignores the EAN value.",
+        }),
+      ]),
+    );
+  });
+
+  it("requires explicit UPC-only mode when only UPC exists", () => {
+    const eans = extractEans(
+      [
+        ["Product", "UPC"],
+        ["P1", "111111111111"],
+      ],
+      eansContext,
+    );
+
+    expect(eans.records).toHaveLength(0);
+    expect(eans.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          rowNumber: 2,
+          field: "mode",
+          message: 'Mode "upc only" is required for UPC-only URLs.',
+        }),
+      ]),
+    );
+  });
+
+  it("creates UPC URLs when UPC mode is explicit", () => {
+    const output = buildUrls(
+      [
+        {
+          purchase_order: "1001",
+          product: "P1",
+          base_url: "https://example.test",
+          sourceRowNumber: 2,
+        },
+      ],
+      [
+        identifierRecord({
+          product: "P1",
+          ean: "1234567890123",
+          upc: "123456789012",
+          mode: "upc",
+          sourceRowNumber: 2,
+        }),
+      ],
+    );
+
+    expect(output.urls[0]).toEqual(
+      expect.objectContaining({
+        identifier_type: "upc",
+        identifier: "123456789012",
+        ean: "1234567890123",
+        upc: "123456789012",
+        mode: "upc",
+        url: "https://example.test/01/123456789012/10/1001",
+      }),
+    );
+  });
+
+  it("validates explicit UPC and invalid mode values", () => {
+    const eans = extractEans(
+      [
+        ["Product", "EAN", "UPC", "Mode"],
+        ["P1", "1111111111111", "", "upc"],
+        ["P2", "", "222222222222", "upc"],
+        ["P3", "3333333333333", "333333333333", "gtin"],
+      ],
+      eansContext,
+    );
+
+    expect(eans.records).toHaveLength(0);
+    expect(eans.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: "error",
+          rowNumber: 2,
+          field: "mode",
+          message: "UPC mode requires both EAN and UPC values.",
+        }),
+        expect.objectContaining({
+          severity: "error",
+          rowNumber: 3,
+          field: "mode",
+          message: "UPC mode requires both EAN and UPC values.",
+        }),
+        expect.objectContaining({
+          severity: "error",
+          rowNumber: 4,
+          field: "mode",
+          message: 'Mode must be "ean", "upc", or "upc only".',
         }),
       ]),
     );
@@ -306,7 +490,7 @@ describe("URL generator transform", () => {
           sourceRowNumber: 6,
         },
       ],
-      [{ product: "P1", ean: "1234567890123", sku: "", sourceRowNumber: 2 }],
+      [identifierRecord({ product: "P1", ean: "1234567890123", sourceRowNumber: 2 })],
     );
 
     expect(output.urls.map((row) => row.url)).toEqual([
@@ -354,7 +538,7 @@ describe("URL generator transform", () => {
           sourceRowNumber: 3,
         },
       ],
-      [{ product: "P1", ean: "1234567890123", sku: "", sourceRowNumber: 2 }],
+      [identifierRecord({ product: "P1", ean: "1234567890123", sourceRowNumber: 2 })],
     );
 
     expect(output.urls).toEqual([]);
@@ -386,7 +570,7 @@ describe("URL generator transform", () => {
           sourceRowNumber: 2,
         },
       ],
-      [{ product: "P1", ean: "1234567890123", sku: "", sourceRowNumber: 2 }],
+      [identifierRecord({ product: "P1", ean: "1234567890123", sourceRowNumber: 2 })],
     );
 
     expect(output.urls).toEqual([]);
@@ -412,7 +596,7 @@ describe("URL generator transform", () => {
           sourceRowNumber: 2,
         },
       ],
-      [{ product: "P1", ean: "1234567890123", sku: "", sourceRowNumber: 2 }],
+      [identifierRecord({ product: "P1", ean: "1234567890123", sourceRowNumber: 2 })],
     );
 
     expect(output.unmatchedOrders).toEqual([]);
@@ -456,9 +640,19 @@ describe("URL generator transform", () => {
       },
     ];
     const eans = [
-      { product: "B", ean: "2222222222222", sku: "S-2", sourceRowNumber: 2 },
-      { product: "A", ean: "1111111111111", sku: "", sourceRowNumber: 3 },
-      { product: "B", ean: "3333333333333", sku: "S-1", sourceRowNumber: 4 },
+      identifierRecord({
+        product: "B",
+        ean: "2222222222222",
+        sku: "S-2",
+        sourceRowNumber: 2,
+      }),
+      identifierRecord({ product: "A", ean: "1111111111111", sourceRowNumber: 3 }),
+      identifierRecord({
+        product: "B",
+        ean: "3333333333333",
+        sku: "S-1",
+        sourceRowNumber: 4,
+      }),
     ];
 
     expect(

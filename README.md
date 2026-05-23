@@ -2,7 +2,7 @@
 
 Open Commander is a Cloudflare-hosted web app for running small Excel-processing scripts in the user's browser. The current deployment uses Workers static assets through Wrangler. The app does not upload source workbooks to a backend, does not store files, and does not require server-side compute for the current workflow.
 
-The first script is **URL Generator**. It takes one orders workbook and one EAN workbook, matches rows by product, and produces a downloadable `.xlsx` output with generated URLs.
+The first script is **URL Generator**. It takes one orders workbook and one EAN/UPC workbook, matches rows by product, and produces a downloadable `.xlsx` output with generated URLs.
 
 ## Stack
 
@@ -136,24 +136,25 @@ That command builds the app and uploads `dist` with `wrangler pages deploy`.
 1. Open the app.
 2. Choose a script from the script selector.
 3. Drop or select `.xlsx` files.
-4. Choose one orders workbook and one EAN workbook.
+4. Choose one orders workbook and one EAN/UPC workbook.
 5. Run the script.
 6. Review the run summary and generated-row preview.
 7. Download the generated output workbook.
 
-The app enforces a 5 MB maximum per file. Files are read locally with browser APIs and normally processed in a Web Worker. The output panel shows progress stages while the run is active. If the browser stops background processing, the app rereads the selected files and retries once. If the retry also fails with a runtime processing failure, the UI offers compatibility mode, which runs the same script on the main browser thread. Validation failures, such as missing headers or duplicate purchase order/product combinations, are shown as input issues and are not retried. The URL Generator workspace also includes small downloadable orders and EAN workbook templates.
+The app enforces a 5 MB maximum per file. Files are read locally with browser APIs and normally processed in a Web Worker. The output panel shows progress stages while the run is active. If the browser stops background processing, the app rereads the selected files and retries once. If the retry also fails with a runtime processing failure, the UI offers compatibility mode, which runs the same script on the main browser thread. Validation failures, such as missing headers, invalid identifier modes, or duplicate purchase order/product combinations, are shown as input issues and are not retried. The URL Generator workspace also includes small downloadable orders and EAN/UPC workbook templates.
 
 ## URL Generator Input
 
 The current script expects two workbooks:
 
 - Orders workbook
-- EAN workbook
+- EAN/UPC workbook
 
 File names are auto-detected when possible:
 
 - `*_orders.xlsx` is treated as orders.
-- `*_eans.xlsx` is treated as EANs.
+- `*_eans.xlsx` is treated as the EAN/UPC workbook.
+- Names containing UPC, barcode, GTIN, or identifier terms are also treated as the EAN/UPC workbook.
 
 The UI still lets the user manually choose which file is which.
 
@@ -175,12 +176,17 @@ Accepted header examples include:
 
 If no recognizable header row is detected, the run fails with input issues. The script no longer falls back to positional columns.
 
-### EAN Columns
+### EAN/UPC Columns
 
 Required fields:
 
 - `product`
+
+Identifier fields:
+
 - `ean`
+- `upc`
+- `mode`
 
 Optional field:
 
@@ -189,10 +195,24 @@ Optional field:
 Accepted header examples include:
 
 - Product: `product`, `product code`, `product_code`, `product number`, `item`, `item code`, `item number`, `article`, `article number`, `style`, `style number`
-- EAN: `ean`, `eans`, `barcode`, `bar code`, `gtin`, `gtins`, `upc`
+- EAN: `ean`, `eans`, `barcode`, `bar code`
+- UPC: `upc`, `upcs`, `upc code`, `upc number`, `universal product code`
+- Mode: `mode`, `gtin mode`, `identifier mode`, `url mode`
 - SKU: `sku`, `variant sku`, `size sku`, `internal sku`
 
-If no recognizable header row is detected, the run fails with input issues. Duplicate EAN and duplicate SKU values are rejected.
+`gtin` is intentionally not accepted as an identifier header because it is ambiguous once EAN and UPC are handled differently.
+
+Mode values are row-level and may be blank:
+
+- blank mode with EAN present uses EAN
+- blank mode with both EAN and UPC present uses EAN
+- `ean` uses EAN and requires an EAN value
+- `upc` uses UPC and requires both EAN and UPC values
+- `upc only` uses UPC and requires a UPC value
+
+If only a UPC column/value is present and mode is blank, the run fails with an input issue saying mode `upc only` is required for UPC-only URLs. If both EAN and UPC values are present with mode `upc only`, the run succeeds and records a warning that EAN is ignored.
+
+If no recognizable header row is detected, the run fails with input issues. Duplicate EAN, duplicate UPC, and duplicate SKU values are rejected.
 
 ## URL Generator Output
 
@@ -203,26 +223,26 @@ The generated workbook always includes:
 
 It may also include:
 
-- `unmatched_orders`, when any order product has no matching EAN product
+- `unmatched_orders`, when any order product has no matching EAN/UPC product
 - `input_issues`, when warnings or informational notices were recorded in an otherwise successful run
 
 The main URL format is:
 
 ```text
-{base_url}/01/{ean}/10/{purchase_order}
+{base_url}/01/{identifier}/10/{purchase_order}
 ```
 
-The script trims trailing slashes from `base_url` and URL-encodes the EAN and purchase order path segments.
+The script trims trailing slashes from `base_url` and URL-encodes the chosen identifier and purchase order path segments.
 `base_url` values must be valid `https://` root domains, such as `https://example.com`. They must not include paths, query strings, hashes, credentials, `http://`, or `www.`. Template placeholder domains such as `example.com` are rejected in uploaded data so they are not accidentally reused in output.
 
-For each valid order row, the script finds all EAN rows for the same normalized product and creates one URL row per matching EAN. Product matching is case-insensitive and ignores spaces, dots, underscores, and hyphens.
+For each valid order row, the script finds all EAN/UPC rows for the same normalized product and creates one URL row per matching identifier row. Product matching is case-insensitive and ignores spaces, dots, underscores, and hyphens.
 
-The `urls` sheet includes `order_row_number` and `ean_row_number` columns so output rows can be traced back to the source workbooks. `unmatched_orders` includes `order_row_number`.
+The `urls` sheet includes `identifier_type`, `identifier`, `ean`, `upc`, `mode`, `order_row_number`, and `identifier_row_number` columns so output rows can be traced back to the source workbooks. `unmatched_orders` includes `order_row_number`.
 
 After a successful run, the UI shows:
 
 - a plain-language summary of URLs created, source rows read, and unmatched orders
-- count cards for URLs, orders, EANs, and unmatched orders
+- count cards for URLs, orders, EAN/UPC rows, and unmatched orders
 - a preview of the first five generated URL rows
 - detected source-table/header information
 - any non-fatal issues included in the output workbook
@@ -287,7 +307,7 @@ React UI
   -> user chooses a script from the selector
   -> user selects .xlsx files
   -> file roles are detected from names
-  -> user confirms orders and EAN files
+  -> user confirms orders and EAN/UPC files
   -> App reads File objects as ArrayBuffer
   -> runInWorker posts buffers to scriptRunner.worker
   -> worker reports progress stages and dynamically loads the Excel engine
@@ -329,8 +349,8 @@ The first screen is already a script selector. `App.tsx` still assumes the URL G
 - Rows missing required values are skipped during extraction and reported as fatal input issues, so no output workbook is created until they are fixed.
 - Product matching is case-insensitive and ignores spaces, dots, underscores, and hyphens.
 - Purchase order/product combinations must be unique. Purchase orders are normalized by trimming and uppercasing; products use the same normalization as product matching.
-- Duplicate EAN and SKU values are reported as fatal input issues.
-- EAN values are checked for non-numeric characters and unusual lengths.
+- Duplicate EAN, UPC, and SKU values are reported as fatal input issues.
+- EAN and UPC values are checked for non-numeric characters and unusual lengths.
 - Simple zero-padded numeric formats, such as `0000000000000`, are preserved when ExcelJS exposes the number format.
 - Only the first non-empty worksheet in each workbook is currently processed.
 

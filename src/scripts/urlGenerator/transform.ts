@@ -9,6 +9,7 @@ import type {
   DetectedTable,
   EanRecord,
   FileRole,
+  GtinMode,
   OrderRecord,
   ProcessingIssue,
   UnmatchedOrderRow,
@@ -16,7 +17,7 @@ import type {
 } from "./types";
 
 type OrderField = "purchase_order" | "product" | "base_url";
-type EanField = "product" | "ean" | "sku";
+type EanField = "product" | "ean" | "upc" | "mode" | "sku";
 
 type FileContext = {
   fileRole: FileRole;
@@ -82,9 +83,21 @@ export const EAN_ALIASES = [
   "eans",
   "barcode",
   "bar code",
-  "gtin",
-  "gtins",
+];
+
+export const UPC_ALIASES = [
   "upc",
+  "upcs",
+  "upc code",
+  "upc number",
+  "universal product code",
+];
+
+export const MODE_ALIASES = [
+  "mode",
+  "gtin mode",
+  "identifier mode",
+  "url mode",
 ];
 
 export const SKU_ALIASES = [
@@ -126,7 +139,19 @@ const EAN_COLUMNS: ColumnSpec<EanField>[] = [
     key: "ean",
     label: "EAN",
     aliases: EAN_ALIASES,
-    required: true,
+    required: false,
+  },
+  {
+    key: "upc",
+    label: "UPC",
+    aliases: UPC_ALIASES,
+    required: false,
+  },
+  {
+    key: "mode",
+    label: "Mode",
+    aliases: MODE_ALIASES,
+    required: false,
   },
   {
     key: "sku",
@@ -165,18 +190,19 @@ export function extractEans(rows: string[][], context: FileContext): ExtractedEa
     EAN_COLUMNS,
     context,
   );
-  const eanRecords = records.map(({ values, sourceRowNumber }) => ({
-    product: values.product,
-    ean: values.ean,
-    sku: values.sku ?? "",
-    sourceRowNumber,
-  }));
+  const resolved = records.map(({ values, sourceRowNumber }) =>
+    resolveIdentifierRecord(values, sourceRowNumber, context),
+  );
+  const eanRecords = resolved
+    .map((result) => result.record)
+    .filter((record): record is EanRecord => Boolean(record));
+  const identifierIssues = resolved.flatMap((result) => result.issues);
 
   return {
     records: eanRecords,
     issues: [
       ...issues,
-      ...eanRecords.flatMap((record) => validateEan(record, context)),
+      ...identifierIssues,
       ...validateDuplicateEans(eanRecords, context),
     ],
     detectedTable,
@@ -190,8 +216,9 @@ export function buildUrls(
   const issues: ProcessingIssue[] = [];
   const uniqueOrders: OrderRecord[] = [];
   const seenOrders = new Set<string>();
-  const eansByProduct = new Map<string, EanRecord[]>();
+  const identifiersByProduct = new Map<string, EanRecord[]>();
   const seenEans = new Set<string>();
+  const seenUpcs = new Set<string>();
   const seenSkus = new Set<string>();
 
   for (const order of orders) {
@@ -215,10 +242,11 @@ export function buildUrls(
   for (const eanRecord of eans) {
     const productKey = normalizeProductKey(eanRecord.product);
     const eanKey = normalizeIdentifierKey(eanRecord.ean);
+    const upcKey = normalizeIdentifierKey(eanRecord.upc);
     const skuKey = normalizeIdentifierKey(eanRecord.sku);
     let hasDuplicateIdentifier = false;
 
-    if (seenEans.has(eanKey)) {
+    if (eanKey && seenEans.has(eanKey)) {
       hasDuplicateIdentifier = true;
       issues.push({
         severity: "error",
@@ -226,6 +254,17 @@ export function buildUrls(
         rowNumber: eanRecord.sourceRowNumber,
         field: "ean",
         message: `Duplicate EAN "${eanRecord.ean}" is not allowed.`,
+      });
+    }
+
+    if (upcKey && seenUpcs.has(upcKey)) {
+      hasDuplicateIdentifier = true;
+      issues.push({
+        severity: "error",
+        fileRole: "eans",
+        rowNumber: eanRecord.sourceRowNumber,
+        field: "upc",
+        message: `Duplicate UPC "${eanRecord.upc}" is not allowed.`,
       });
     }
 
@@ -244,15 +283,21 @@ export function buildUrls(
       continue;
     }
 
-    seenEans.add(eanKey);
+    if (eanKey) {
+      seenEans.add(eanKey);
+    }
+
+    if (upcKey) {
+      seenUpcs.add(upcKey);
+    }
 
     if (skuKey) {
       seenSkus.add(skuKey);
     }
 
-    const bucket = eansByProduct.get(productKey) ?? [];
+    const bucket = identifiersByProduct.get(productKey) ?? [];
     bucket.push(eanRecord);
-    eansByProduct.set(productKey, bucket);
+    identifiersByProduct.set(productKey, bucket);
   }
 
   const urls: UrlOutputRow[] = [];
@@ -276,7 +321,7 @@ export function buildUrls(
   }
 
   for (const order of uniqueOrders) {
-    const matches = eansByProduct.get(normalizeProductKey(order.product));
+    const matches = identifiersByProduct.get(normalizeProductKey(order.product));
 
     if (invalidOrders.has(order)) {
       if (matches && matches.length > 0) {
@@ -305,13 +350,17 @@ export function buildUrls(
     for (const match of matches) {
       urls.push({
         order_row_number: order.sourceRowNumber,
-        ean_row_number: match.sourceRowNumber,
+        identifier_row_number: match.sourceRowNumber,
         purchase_order: order.purchase_order,
         product: order.product,
         base_url: baseUrl,
+        identifier_type: match.identifier_type,
+        identifier: match.identifier,
         ean: match.ean,
+        upc: match.upc,
+        mode: match.mode,
         sku: match.sku,
-        url: formatGeneratedUrl(baseUrl, match.ean, order.purchase_order),
+        url: formatGeneratedUrl(baseUrl, match.identifier, order.purchase_order),
       });
     }
   }
@@ -324,7 +373,7 @@ export function buildUrls(
       message:
         matchedOrderCount > 0
           ? "No URLs were created because matching orders had invalid Base URLs."
-          : "No URLs were created because no order products matched EAN products.",
+          : "No URLs were created because no order products matched EAN/UPC products.",
     });
   }
 
@@ -439,8 +488,8 @@ function normalizeBaseUrl(url: string): string {
   return normalizeDataText(url).replace(/\/+$/g, "");
 }
 
-function normalizeIdentifierKey(value: string): string {
-  return normalizeDataText(value).toLowerCase();
+function normalizeIdentifierKey(value: string | undefined): string {
+  return value ? normalizeDataText(value).toLowerCase() : "";
 }
 
 function normalizePurchaseOrderKey(value: string): string {
@@ -453,17 +502,244 @@ function normalizeOrderProductKey(record: OrderRecord): string {
   )}`;
 }
 
-function validateEan(record: EanRecord, context: FileContext): ProcessingIssue[] {
+function resolveIdentifierRecord(
+  values: Record<EanField, string>,
+  sourceRowNumber: number,
+  context: FileContext,
+): { record: EanRecord | null; issues: ProcessingIssue[] } {
+  const ean = values.ean ?? "";
+  const upc = values.upc ?? "";
+  const normalizedMode = normalizeMode(values.mode ?? "");
   const issues: ProcessingIssue[] = [];
 
-  if (!/^\d+$/.test(record.ean)) {
+  if (!normalizedMode.ok) {
+    return {
+      record: null,
+      issues: [
+        withContext(
+          {
+            severity: "error",
+            rowNumber: sourceRowNumber,
+            field: "mode",
+            message: 'Mode must be "ean", "upc", or "upc only".',
+          },
+          context,
+        ),
+      ],
+    };
+  }
+
+  const modeResult = resolveMode({
+    ean,
+    upc,
+    explicitMode: normalizedMode.mode,
+    sourceRowNumber,
+    context,
+  });
+
+  issues.push(...modeResult.issues);
+
+  if (!modeResult.ok) {
+    return { record: null, issues };
+  }
+
+  const mode = modeResult.mode;
+  const identifierType = mode === "ean" ? "ean" : "upc";
+  const identifier = identifierType === "ean" ? ean : upc;
+
+  issues.push(...validateIdentifier("ean", ean, sourceRowNumber, context));
+  issues.push(...validateIdentifier("upc", upc, sourceRowNumber, context));
+
+  return {
+    record: {
+      product: values.product,
+      ean,
+      upc,
+      sku: values.sku ?? "",
+      mode,
+      identifier,
+      identifier_type: identifierType,
+      sourceRowNumber,
+    },
+    issues,
+  };
+}
+
+function normalizeMode(
+  value: string,
+): { ok: true; mode: GtinMode | "" } | { ok: false } {
+  const normalized = normalizeDataText(value);
+
+  if (!normalized) {
+    return { ok: true, mode: "" };
+  }
+
+  const mode = normalized.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  const compactMode = mode.replace(/\s+/g, "");
+
+  if (mode === "ean") {
+    return { ok: true, mode: "ean" };
+  }
+
+  if (mode === "upc") {
+    return { ok: true, mode: "upc" };
+  }
+
+  if (mode === "upc only" || compactMode === "upconly") {
+    return { ok: true, mode: "upc_only" };
+  }
+
+  return { ok: false };
+}
+
+function resolveMode(input: {
+  ean: string;
+  upc: string;
+  explicitMode: GtinMode | "";
+  sourceRowNumber: number;
+  context: FileContext;
+}):
+  | { ok: true; mode: GtinMode; issues: ProcessingIssue[] }
+  | { ok: false; issues: ProcessingIssue[] } {
+  const hasEan = !isMissingText(input.ean);
+  const hasUpc = !isMissingText(input.upc);
+  const issues: ProcessingIssue[] = [];
+
+  if (!hasEan && !hasUpc) {
+    return {
+      ok: false,
+      issues: [
+        withContext(
+          {
+            severity: "error",
+            rowNumber: input.sourceRowNumber,
+            field: "ean",
+            message: "Either EAN or UPC is required.",
+          },
+          input.context,
+        ),
+      ],
+    };
+  }
+
+  if (!input.explicitMode) {
+    if (hasEan) {
+      return { ok: true, mode: "ean", issues };
+    }
+
+    return {
+      ok: false,
+      issues: [
+        withContext(
+          {
+            severity: "error",
+            rowNumber: input.sourceRowNumber,
+            field: "mode",
+            message: 'Mode "upc only" is required for UPC-only URLs.',
+          },
+          input.context,
+        ),
+      ],
+    };
+  }
+
+  if (input.explicitMode === "ean") {
+    if (hasEan) {
+      return { ok: true, mode: "ean", issues };
+    }
+
+    return {
+      ok: false,
+      issues: [
+        withContext(
+          {
+            severity: "error",
+            rowNumber: input.sourceRowNumber,
+            field: "ean",
+            message: "EAN mode requires an EAN value.",
+          },
+          input.context,
+        ),
+      ],
+    };
+  }
+
+  if (input.explicitMode === "upc") {
+    if (hasEan && hasUpc) {
+      return { ok: true, mode: "upc", issues };
+    }
+
+    return {
+      ok: false,
+      issues: [
+        withContext(
+          {
+            severity: "error",
+            rowNumber: input.sourceRowNumber,
+            field: "mode",
+            message: "UPC mode requires both EAN and UPC values.",
+          },
+          input.context,
+        ),
+      ],
+    };
+  }
+
+  if (!hasUpc) {
+    return {
+      ok: false,
+      issues: [
+        withContext(
+          {
+            severity: "error",
+            rowNumber: input.sourceRowNumber,
+            field: "upc",
+            message: "UPC-only mode requires a UPC value.",
+          },
+          input.context,
+        ),
+      ],
+    };
+  }
+
+  if (hasEan) {
     issues.push(
       withContext(
         {
           severity: "warning",
-          rowNumber: record.sourceRowNumber,
-          field: "ean",
-          message: "EAN contains non-numeric characters.",
+          rowNumber: input.sourceRowNumber,
+          field: "mode",
+          message: "UPC-only mode ignores the EAN value.",
+        },
+        input.context,
+      ),
+    );
+  }
+
+  return { ok: true, mode: "upc_only", issues };
+}
+
+function validateIdentifier(
+  field: "ean" | "upc",
+  value: string,
+  sourceRowNumber: number,
+  context: FileContext,
+): ProcessingIssue[] {
+  const issues: ProcessingIssue[] = [];
+  const normalizedValue = normalizeDataText(value);
+
+  if (isMissingText(normalizedValue)) {
+    return issues;
+  }
+
+  if (!/^\d+$/.test(normalizedValue)) {
+    issues.push(
+      withContext(
+        {
+          severity: "warning",
+          rowNumber: sourceRowNumber,
+          field,
+          message: `${field.toUpperCase()} contains non-numeric characters.`,
         },
         context,
       ),
@@ -471,15 +747,17 @@ function validateEan(record: EanRecord, context: FileContext): ProcessingIssue[]
     return issues;
   }
 
-  if (![8, 12, 13, 14].includes(record.ean.length)) {
+  const expectedLengths = field === "ean" ? [8, 12, 13, 14] : [8, 12];
+
+  if (!expectedLengths.includes(normalizedValue.length)) {
     issues.push(
       withContext(
         {
           severity: "warning",
-          rowNumber: record.sourceRowNumber,
-          field: "ean",
+          rowNumber: sourceRowNumber,
+          field,
           message:
-            "EAN length is unusual. If leading zeroes are missing, format the source column as text or with a zero-padding number format.",
+            `${field.toUpperCase()} length is unusual. If leading zeroes are missing, format the source column as text or with a zero-padding number format.`,
         },
         context,
       ),
@@ -530,27 +808,53 @@ function validateDuplicateEans(
   context: FileContext,
 ): ProcessingIssue[] {
   const seenEans = new Map<string, EanRecord>();
+  const seenUpcs = new Map<string, EanRecord>();
   const seenSkus = new Map<string, EanRecord>();
   const issues: ProcessingIssue[] = [];
 
   for (const record of records) {
     const eanKey = normalizeIdentifierKey(record.ean);
-    const firstEanRecord = seenEans.get(eanKey);
 
-    if (firstEanRecord) {
-      issues.push(
-        withContext(
-          {
-            severity: "error",
-            rowNumber: record.sourceRowNumber,
-            field: "ean",
-            message: `Duplicate EAN "${record.ean}" also appears on row ${firstEanRecord.sourceRowNumber}.`,
-          },
-          context,
-        ),
-      );
-    } else {
-      seenEans.set(eanKey, record);
+    if (eanKey) {
+      const firstEanRecord = seenEans.get(eanKey);
+
+      if (firstEanRecord) {
+        issues.push(
+          withContext(
+            {
+              severity: "error",
+              rowNumber: record.sourceRowNumber,
+              field: "ean",
+              message: `Duplicate EAN "${record.ean}" also appears on row ${firstEanRecord.sourceRowNumber}.`,
+            },
+            context,
+          ),
+        );
+      } else {
+        seenEans.set(eanKey, record);
+      }
+    }
+
+    const upcKey = normalizeIdentifierKey(record.upc);
+
+    if (upcKey) {
+      const firstUpcRecord = seenUpcs.get(upcKey);
+
+      if (firstUpcRecord) {
+        issues.push(
+          withContext(
+            {
+              severity: "error",
+              rowNumber: record.sourceRowNumber,
+              field: "upc",
+              message: `Duplicate UPC "${record.upc}" also appears on row ${firstUpcRecord.sourceRowNumber}.`,
+            },
+            context,
+          ),
+        );
+      } else {
+        seenUpcs.set(upcKey, record);
+      }
     }
 
     const skuKey = normalizeIdentifierKey(record.sku);
@@ -753,7 +1057,8 @@ function sortUrlRows(rows: UrlOutputRow[]): UrlOutputRow[] {
       compareText(normalizeProductKey(a.product), normalizeProductKey(b.product)),
       compareText(a.product, b.product),
       compareText(a.sku, b.sku),
-      a.ean.localeCompare(b.ean, undefined, { numeric: true }),
+      compareText(a.identifier_type, b.identifier_type),
+      a.identifier.localeCompare(b.identifier, undefined, { numeric: true }),
     ].find((result) => result !== 0) ?? 0,
   );
 }
