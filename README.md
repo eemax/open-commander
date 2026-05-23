@@ -62,6 +62,8 @@ The chosen identifier and purchase order are URL path encoded. Product matching 
 6. Review the summary, first five generated rows, detected headers, and any non-fatal issues.
 7. Download the output workbook.
 
+The URL Generator screen also has a Help button with short examples for columns, modes, and Base URLs.
+
 The app enforces a 5 MB limit per file.
 
 ## Input Workbooks

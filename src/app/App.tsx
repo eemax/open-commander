@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Download,
   FileSpreadsheet,
+  HelpCircle,
   Loader2,
   Play,
   RotateCcw,
@@ -86,6 +87,7 @@ export function App() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<UrlGeneratorRunResult | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(null);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const activeRunRef = useRef<WorkerRun<UrlGeneratorRunResult> | null>(null);
   const runVersionRef = useRef(0);
 
@@ -94,6 +96,24 @@ export function App() {
       activeRunRef.current?.cancel();
     };
   }, []);
+
+  useEffect(() => {
+    if (!isHelpOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsHelpOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isHelpOpen]);
 
   const selectedFiles = useMemo(
     () => ({
@@ -441,6 +461,7 @@ export function App() {
 
   function backToScripts() {
     cancelCurrentRun();
+    setIsHelpOpen(false);
     setActiveScriptId(null);
   }
 
@@ -481,6 +502,15 @@ export function App() {
                 </h1>
               </div>
               <div className="workspace-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setIsHelpOpen(true)}
+                  title="Help"
+                >
+                  <HelpCircle aria-hidden="true" size={17} />
+                  <span>Help</span>
+                </button>
                 <button
                   className="secondary-button"
                   type="button"
@@ -731,11 +761,110 @@ export function App() {
                 )}
               </section>
             </div>
+
+            {isHelpOpen ? (
+              <UrlGeneratorHelpModal onClose={() => setIsHelpOpen(false)} />
+            ) : null}
           </>
         ) : (
           <ScriptSelector scripts={scripts} onSelect={openScript} />
         )}
       </main>
+    </div>
+  );
+}
+
+function UrlGeneratorHelpModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <section
+        aria-labelledby="url-generator-help-title"
+        aria-modal="true"
+        className="help-modal"
+        role="dialog"
+      >
+        <div className="help-modal-header">
+          <div>
+            <h2 id="url-generator-help-title">URL Generator Help</h2>
+            <p>Use the templates when you are unsure. Keep the column names.</p>
+          </div>
+          <button
+            aria-label="Close help"
+            className="icon-button"
+            type="button"
+            onClick={onClose}
+          >
+            <X aria-hidden="true" size={17} />
+          </button>
+        </div>
+
+        <div className="help-sections">
+          <section className="help-section">
+            <h3>Files</h3>
+            <ul>
+              <li>Upload one orders file.</li>
+              <li>Upload one EAN/UPC file.</li>
+              <li>Both files must be Excel files.</li>
+            </ul>
+          </section>
+
+          <section className="help-section">
+            <h3>Columns</h3>
+            <ul>
+              <li>Orders need purchase_order, product, and base_url.</li>
+              <li>EAN/UPC needs product and ean or upc.</li>
+              <li>Do not rename the template columns.</li>
+            </ul>
+          </section>
+
+          <section className="help-section">
+            <h3>Mode</h3>
+            <ul>
+              <li>The mode column is optional.</li>
+              <li>Leave it blank if you use EAN.</li>
+              <li>Write "upc" if the URL should use UPC.</li>
+              <li>Write "upc only" if you only have UPC.</li>
+            </ul>
+          </section>
+
+          <section className="help-section">
+            <h3>Base URL</h3>
+            <ul>
+              <li>Use the domain you want in the generated URLs.</li>
+              <li>Use the "id" subdomain unless you have a reason not to.</li>
+              <li>Example: https://id.your-domain.com</li>
+              <li>Base domain only. No www. and no paths like /product.</li>
+            </ul>
+          </section>
+        </div>
+
+        <div className="help-modal-actions">
+          <a
+            className="template-link"
+            href="/templates/url-generator-orders-template.xlsx"
+            download
+          >
+            <Download aria-hidden="true" size={16} />
+            <span>Orders template</span>
+          </a>
+          <a
+            className="template-link"
+            href="/templates/url-generator-eans-template.xlsx"
+            download
+          >
+            <Download aria-hidden="true" size={16} />
+            <span>EAN/UPC template</span>
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

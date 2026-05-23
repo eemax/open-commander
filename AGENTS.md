@@ -17,6 +17,7 @@ The only implemented script is URL Generator:
 - one automatic worker retry for runtime/processor failures
 - optional main-thread compatibility mode after retry failure
 - validation failures are row-level input issues and must not trigger retry/compatibility mode
+- URL Generator workspace includes a simple Help modal for non-technical users
 
 ## Commands
 
