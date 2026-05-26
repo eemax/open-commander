@@ -54,7 +54,7 @@ Vite may choose another port if the default is busy.
 - `src/scripts/urlGenerator/fileRoles.ts`: filename role detection and output filename derivation.
 - `src/scripts/urlGenerator/*.test.ts`: transform, workbook, and filename-role coverage.
 - `public/templates/*.xlsx`: user-downloadable workbook templates. Edit with ExcelJS or a proper workbook tool, not plain text.
-- `src/styles.css`: app styling.
+- `src/styles.css`: CSS import manifest. Component and responsive styling lives in `src/styles/*.css`.
 
 ## Architecture Rules
 
@@ -189,7 +189,7 @@ Generated URL shape:
 
 ## Design Palette Notes
 
-Palette rules live in `docs/design-palette.md`. Preserve the semantic color split:
+Palette rules live in `docs/design-palette.md`. The app supports `auto`, `light`, and `dark` theme modes, stored as `open-commander-theme` and reflected on `<html data-theme="...">`; CSS tokens use `<html data-resolved-theme="light|dark">` after resolving auto. Preserve the semantic color split in both dark and light token sets:
 
 - cyan means runnable system: scripts, processors, upload/process affordances, local execution context
 - coral means the run moment: Run button, active execution, cursor/progress pulse
@@ -199,6 +199,8 @@ Palette rules live in `docs/design-palette.md`. Preserve the semantic color spli
 - white/gray carries normal UI text, labels, navigation, metadata, and secondary controls
 
 Do not reuse coral as the generic error color; errors use a deeper red so the Run action does not look dangerous.
+
+Keep the light theme calm and slightly warm, not beige-heavy. Theme-aware values include soft semantic backgrounds, topbar alpha, modal backdrop/shadow, disabled controls, uploaded file accents, topbar logo frame, and mobile sticky button shadow.
 
 ## Before Finishing Changes
 

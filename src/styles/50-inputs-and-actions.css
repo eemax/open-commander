@@ -1,0 +1,380 @@
+.control-panel,
+.result-panel {
+  padding: 22px;
+  background: var(--surface);
+}
+
+.control-panel {
+  border-right: 1px solid var(--border);
+}
+
+.section-title,
+.result-header,
+.issues-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-title {
+  min-height: 32px;
+  margin-bottom: 14px;
+}
+
+.section-title > span {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-pill {
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.status-pill.status-ready {
+  border: 1px solid var(--success-border);
+  background: var(--success-soft);
+  color: var(--success-strong);
+}
+
+.status-pill.status-warning {
+  border: 1px solid var(--warning-border);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.status-pill.status-running {
+  border: 1px solid var(--run-border);
+  background: var(--run-soft);
+  color: var(--run-strong);
+}
+
+.status-pill.status-error {
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.dropzone {
+  display: grid;
+  place-items: center;
+  gap: 7px;
+  min-height: 128px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: center;
+}
+
+.dropzone:hover,
+.dropzone.is-dragging {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dropzone input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.dropzone span {
+  margin-top: 2px;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.dropzone > svg {
+  color: var(--accent);
+}
+
+.dropzone small {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.dropzone small + small {
+  color: var(--text-soft);
+}
+
+.template-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.template-link {
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.template-link:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+}
+
+.notice-stack {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.notice,
+.error-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 11px 12px;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.notice {
+  border: 1px solid var(--warning-border);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.error-box {
+  margin-top: 16px;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.file-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.empty-file-list {
+  display: grid;
+  place-items: center;
+  min-height: 52px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.file-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 66px;
+  padding: 10px;
+  border: 1px solid var(--file-accent-border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--file-accent-bg);
+}
+
+.file-row > svg {
+  color: var(--accent);
+}
+
+.file-row strong,
+.file-meta {
+  min-width: 0;
+}
+
+.file-row strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-meta {
+  gap: 7px;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.role-badge {
+  min-height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--file-accent-border);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.role-badge-muted {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--text-soft);
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 11px;
+  margin-top: 18px;
+  padding-top: 17px;
+  border-top: 1px solid var(--border);
+}
+
+.role-grid-title {
+  display: grid;
+  gap: 4px;
+}
+
+.role-grid-title span {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.role-grid label {
+  display: grid;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.role-field-selected > span,
+.role-grid label:focus-within > span {
+  color: var(--accent-strong);
+}
+
+select {
+  width: 100%;
+  min-height: 43px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 0 11px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+select:focus,
+select:focus-visible {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 32%, var(--surface));
+}
+
+.role-field-selected select {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+select:disabled {
+  cursor: not-allowed;
+  background: var(--control-disabled-bg);
+  color: var(--text-soft);
+}
+
+.validation-list {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  color: var(--warning);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.run-button,
+.download-button {
+  justify-content: center;
+  gap: 9px;
+  min-height: 45px;
+  border-radius: 8px;
+  color: var(--button-text-on-color);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.run-button {
+  width: 100%;
+  margin-top: 16px;
+  background: var(--run);
+}
+
+.run-button:hover:not(:disabled) {
+  background: var(--run-strong);
+}
+
+.run-button:disabled {
+  cursor: not-allowed;
+  background: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
+}
+
+.cancel-run-button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.download-button {
+  padding: 0 15px;
+  background: var(--success);
+}
+
+.download-button:hover {
+  background: var(--success-strong);
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

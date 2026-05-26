@@ -1,0 +1,179 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 52px;
+  padding: 0 clamp(16px, 3vw, 34px);
+  border-bottom: 1px solid var(--border);
+  background: var(--topbar-bg);
+}
+
+.brand-mark,
+.local-badge,
+.secondary-button,
+.run-button,
+.download-button,
+.template-link,
+.file-meta,
+.role-badge,
+.script-count,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+}
+
+.brand-mark {
+  gap: 10px;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.brand-logo-frame {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--brand-logo-border);
+  border-radius: 7px;
+  background: var(--brand-logo-bg);
+  color: var(--accent);
+}
+
+.brand-logo {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
+.brand-logo-cursor {
+  fill: var(--run);
+}
+
+.topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.local-badge {
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.theme-toggle {
+  position: relative;
+}
+
+.theme-toggle-segments {
+  display: inline-grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 2px;
+  min-height: 32px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.theme-toggle-segments button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 54px;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.theme-toggle-segments button svg {
+  flex: 0 0 auto;
+}
+
+.theme-toggle-segments button:hover {
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.theme-toggle-segments button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.theme-menu-wrapper {
+  position: relative;
+  display: none;
+}
+
+.theme-menu-button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--accent-strong);
+  cursor: pointer;
+}
+
+.theme-menu-button:hover,
+.theme-menu-button[aria-expanded="true"] {
+  border-color: var(--border-strong);
+  background: var(--accent-soft);
+}
+
+.theme-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  display: grid;
+  gap: 3px;
+  min-width: 132px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 14px 34px var(--modal-shadow);
+}
+
+.theme-menu button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.theme-menu button:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.theme-menu button[aria-checked="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}

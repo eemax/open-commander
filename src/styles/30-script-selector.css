@@ -1,0 +1,100 @@
+.home-view {
+  max-width: 740px;
+  margin: 0 auto;
+}
+
+.home-toolbar {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.home-title {
+  margin-bottom: 0;
+  font-size: 1.65rem;
+  line-height: 1.1;
+}
+
+.script-count {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.script-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.script-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  min-height: 92px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.script-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+}
+
+.script-card > svg {
+  color: var(--text-soft);
+}
+
+.script-card-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--script-icon-border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--accent);
+}
+
+.script-card-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.script-card-body strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.script-card-body span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.script-card-body small {
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 398px) minmax(0, 1fr);
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}

@@ -5,6 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#181818" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+      (() => {
+        const fallbackTheme = "auto";
+        const storageKey = "open-commander-theme";
+        const allowedThemes = new Set(["auto", "light", "dark"]);
+        let theme = fallbackTheme;
+
+        try {
+          const storedTheme = window.localStorage.getItem(storageKey);
+          if (allowedThemes.has(storedTheme)) {
+            theme = storedTheme;
+          }
+        } catch {
+          theme = fallbackTheme;
+        }
+
+        document.documentElement.dataset.theme = theme;
+        const prefersLight = window.matchMedia?.("(prefers-color-scheme: light)").matches;
+        const resolvedTheme =
+          theme === "auto" ? (prefersLight ? "light" : "dark") : theme;
+        document.documentElement.dataset.resolvedTheme = resolvedTheme;
+        document
+          .querySelector("meta[name='theme-color']")
+          ?.setAttribute("content", resolvedTheme === "light" ? "#f8f9f4" : "#181818");
+      })();
+    </script>
     <title>Open Commander</title>
   </head>
   <body>
