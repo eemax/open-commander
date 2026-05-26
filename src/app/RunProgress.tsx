@@ -1,5 +1,3 @@
-import { CheckCircle2, Loader2 } from "lucide-react";
-
 const runProgressSteps = [
   "Read files",
   "Start processor",
@@ -24,8 +22,6 @@ export function RunProgress({ status }: { status: string }) {
           <div className={`run-progress-step run-progress-${state}`} key={step}>
             <span className="run-progress-dot" aria-hidden="true" />
             <span>{step}</span>
-            {isComplete ? <CheckCircle2 aria-hidden="true" size={14} /> : null}
-            {isActive ? <Loader2 aria-hidden="true" className="spin" size={14} /> : null}
           </div>
         );
       })}

@@ -34,10 +34,10 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 13px;
+  gap: 12px;
   width: 100%;
-  min-height: 92px;
-  padding: 14px 16px;
+  min-height: 82px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
@@ -92,7 +92,7 @@
 .tool-grid {
   display: grid;
   grid-template-columns: minmax(320px, 398px) minmax(0, 1fr);
-  min-height: 520px;
+  min-height: 470px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;

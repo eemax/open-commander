@@ -58,8 +58,9 @@
 }
 
 .local-badge {
+  justify-content: center;
   gap: 8px;
-  min-height: 30px;
+  min-height: 32px;
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -67,6 +68,10 @@
   color: var(--text-muted);
   font-size: 0.8rem;
   font-weight: 650;
+}
+
+.local-badge svg {
+  flex: 0 0 auto;
 }
 
 .theme-toggle {

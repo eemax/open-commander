@@ -1,6 +1,6 @@
 .control-panel,
 .result-panel {
-  padding: 22px;
+  padding: 16px;
   background: var(--surface);
 }
 
@@ -18,8 +18,8 @@
 }
 
 .section-title {
-  min-height: 32px;
-  margin-bottom: 14px;
+  min-height: 28px;
+  margin-bottom: 10px;
 }
 
 .section-title > span {
@@ -64,7 +64,7 @@
   display: grid;
   place-items: center;
   gap: 7px;
-  min-height: 128px;
+  min-height: 116px;
   border: 1.5px dashed var(--border-strong);
   border-radius: 8px;
   background: var(--surface-muted);
@@ -165,8 +165,8 @@
 
 .file-list {
   display: grid;
-  gap: 10px;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .empty-file-list {
@@ -186,9 +186,9 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  min-height: 66px;
-  padding: 10px;
+  gap: 10px;
+  min-height: 58px;
+  padding: 8px;
   border: 1px solid var(--file-accent-border);
   border-left: 3px solid var(--accent);
   border-radius: 8px;
@@ -216,7 +216,7 @@
 
 .file-meta {
   gap: 7px;
-  margin-top: 5px;
+  margin-top: 4px;
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 500;
@@ -261,8 +261,8 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: 11px;
-  margin-top: 18px;
-  padding-top: 17px;
+  margin-top: 14px;
+  padding-top: 14px;
   border-top: 1px solid var(--border);
 }
 

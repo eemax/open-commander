@@ -7,7 +7,7 @@
   display: grid;
   place-items: center;
   align-content: center;
-  min-height: 420px;
+  min-height: 340px;
   text-align: center;
   color: var(--text-soft);
 }
@@ -32,7 +32,7 @@
   display: grid;
   gap: 9px;
   width: min(340px, 100%);
-  margin-top: 22px;
+  margin-top: 16px;
   text-align: left;
 }
 
@@ -77,7 +77,7 @@
   display: grid;
   align-content: start;
   gap: 16px;
-  min-height: 420px;
+  min-height: 340px;
 }
 
 .run-failure-hero {
@@ -152,12 +152,12 @@
 .result-content {
   display: grid;
   align-content: start;
-  gap: 22px;
+  gap: 16px;
 }
 
 .result-header {
   align-items: start;
-  padding-bottom: 20px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
 }
 
