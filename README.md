@@ -35,6 +35,12 @@ Recommended local versions:
 - Node.js 24 or newer
 - npm 11 or newer
 
+## Design Palette
+
+Open Commander uses a restrained dark palette with semantic accent colors: cyan for runnable system affordances, coral for the run action, green for success, amber for warnings, and red for fatal errors.
+
+See [docs/design-palette.md](docs/design-palette.md) for the palette rules and token usage.
+
 ## URL Generator
 
 URL Generator expects two `.xlsx` workbooks:

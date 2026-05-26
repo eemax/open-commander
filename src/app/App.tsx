@@ -472,7 +472,7 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-mark">
-          <FileSpreadsheet aria-hidden="true" size={24} />
+          <img className="brand-logo" src="/favicon.svg" alt="" aria-hidden="true" />
           <span>Open Commander</span>
         </div>
         <div className="local-badge" title="Files are processed in this browser">
@@ -632,7 +632,11 @@ export function App() {
                   )}
                 </div>
 
-                <div className="role-grid">
+                <div className={`role-grid ${files.length === 0 ? "role-grid-empty" : ""}`}>
+                  <div className="role-grid-title">
+                    <h2>Confirm files</h2>
+                    <span>Match each workbook role</span>
+                  </div>
                   <label>
                     <span>Orders workbook</span>
                     <select
@@ -715,7 +719,11 @@ export function App() {
               </section>
 
               <section
-                className="result-panel"
+                className={`result-panel ${
+                  !isRunning && !result && !runFailure
+                    ? "result-panel-prerun"
+                    : ""
+                }`}
                 aria-label="Run result"
                 aria-busy={isRunning}
               >

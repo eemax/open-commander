@@ -187,6 +187,19 @@ Generated URL shape:
 - EAN/UPC template should show all supported modes: blank EAN default, `upc`, and `upc only`.
 - Keep identifier template columns formatted as text when needed so leading zeroes survive.
 
+## Design Palette Notes
+
+Palette rules live in `docs/design-palette.md`. Preserve the semantic color split:
+
+- cyan means runnable system: scripts, processors, upload/process affordances, local execution context
+- coral means the run moment: Run button, active execution, cursor/progress pulse
+- green means success: ready/completed states, successful output, valid/matched indicators
+- amber means warning: non-blocking issues and cautionary guidance
+- red means fatal error: validation/runtime failures only
+- white/gray carries normal UI text, labels, navigation, metadata, and secondary controls
+
+Do not reuse coral as the generic error color; errors use a deeper red so the Run action does not look dangerous.
+
 ## Before Finishing Changes
 
 Always run:
