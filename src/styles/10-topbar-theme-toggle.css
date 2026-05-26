@@ -25,9 +25,17 @@
 
 .brand-mark {
   gap: 10px;
+  border: 0;
+  background: transparent;
   color: var(--text);
+  cursor: pointer;
   font-size: 0.9rem;
   font-weight: 700;
+  padding: 0;
+}
+
+.brand-mark:hover {
+  color: var(--accent-strong);
 }
 
 .brand-logo-frame {
@@ -52,12 +60,14 @@
 }
 
 .topbar-actions {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
 }
 
 .local-badge {
+  position: relative;
   justify-content: center;
   gap: 8px;
   min-height: 32px;
@@ -66,12 +76,44 @@
   border-radius: 8px;
   background: var(--surface);
   color: var(--text-muted);
+  cursor: pointer;
   font-size: 0.8rem;
   font-weight: 650;
 }
 
+.local-badge:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
 .local-badge svg {
   flex: 0 0 auto;
+}
+
+.local-processing-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 5px;
+  width: min(300px, calc(100vw - 24px));
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 14px 34px var(--modal-shadow);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.38;
+}
+
+.local-processing-popover strong {
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 750;
 }
 
 .theme-toggle {

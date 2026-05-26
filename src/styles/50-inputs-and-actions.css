@@ -1,6 +1,6 @@
 .control-panel,
 .result-panel {
-  padding: 16px;
+  padding: 8px 12px 12px;
   background: var(--surface);
 }
 
@@ -18,8 +18,8 @@
 }
 
 .section-title {
-  min-height: 28px;
-  margin-bottom: 10px;
+  min-height: 24px;
+  margin-bottom: 6px;
 }
 
 .section-title > span {

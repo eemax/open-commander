@@ -30,6 +30,12 @@
 }
 
 @media (max-width: 820px) {
+  .brand-logo-frame {
+    width: 34px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
   .theme-toggle-segments {
     display: none;
   }
@@ -100,7 +106,7 @@
 
   .control-panel,
   .result-panel {
-    padding: 14px;
+    padding: 7px 10px 10px;
   }
 
   .result-panel-prerun {
@@ -245,6 +251,11 @@
     height: 32px;
     min-height: 32px;
     padding: 0;
+  }
+
+  .local-processing-popover {
+    width: min(260px, calc(100vw - 20px));
+    padding: 10px;
   }
 
   .local-badge span {

@@ -78,6 +78,7 @@ export function App() {
   const [result, setResult] = useState<UrlGeneratorRunResult | null>(null);
   const [runFailure, setRunFailure] = useState<RunFailure | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isLocalBadgeTipOpen, setIsLocalBadgeTipOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(readStoredThemeMode);
   const activeRunRef = useRef<WorkerRun<UrlGeneratorRunResult> | null>(null);
   const runVersionRef = useRef(0);
@@ -484,15 +485,41 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand-mark">
+        <button
+          aria-label="Back to scripts"
+          className="brand-mark"
+          onClick={backToScripts}
+          type="button"
+        >
           <BrandLogo />
           <span>Open Commander</span>
-        </div>
+        </button>
         <div className="topbar-actions">
-          <div className="local-badge" title="Files are processed in this browser">
+          <button
+            aria-expanded={isLocalBadgeTipOpen}
+            aria-label="Local processing. Files are processed in this browser."
+            aria-controls="local-processing-popover"
+            className="local-badge"
+            data-tip-open={isLocalBadgeTipOpen ? "true" : undefined}
+            onClick={() => setIsLocalBadgeTipOpen((isOpen) => !isOpen)}
+            title="Files are processed in this browser"
+            type="button"
+          >
             <ShieldCheck aria-hidden="true" size={18} />
             <span>Local processing</span>
-          </div>
+          </button>
+          {isLocalBadgeTipOpen ? (
+            <div
+              className="local-processing-popover"
+              id="local-processing-popover"
+              role="status"
+            >
+              <strong>Local processing</strong>
+              <span>
+                Workbooks are read and generated in this browser tab. Source files are not uploaded, stored, or sent to a server.
+              </span>
+            </div>
+          ) : null}
           <ThemeModeControl mode={themeMode} onChange={setThemeMode} />
         </div>
       </header>
@@ -509,7 +536,7 @@ export function App() {
                   title="Back to scripts"
                   aria-label="Back to scripts"
                 >
-                  <ArrowLeft aria-hidden="true" size={17} />
+                  <ArrowLeft aria-hidden="true" size={24} strokeWidth={2.2} />
                 </button>
                 <h1 className="script-title-line">
                   <span>{activeScript.name}</span>
