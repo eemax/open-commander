@@ -1,6 +1,6 @@
 .workspace {
   width: min(1120px, calc(100% - 40px));
-  margin: 22px auto 40px;
+  margin: 10px auto 40px;
 }
 
 .workspace-heading {
@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 h1,
@@ -27,7 +27,7 @@ h3 {
 
 h1 {
   margin-bottom: 0;
-  font-size: 1.8rem;
+  font-size: 1.48rem;
   font-weight: 720;
 }
 
@@ -78,10 +78,10 @@ h3 {
 .script-title-line {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  font-size: 1.65rem;
-  line-height: 1.05;
+  font-size: 1.38rem;
+  line-height: 1.08;
 }
 
 .script-title-line span:first-child {
@@ -95,7 +95,7 @@ h3 {
 }
 
 .script-title-line span:last-child {
-  font-size: 1.18rem;
+  font-size: 1rem;
 }
 
 .title-row h1,

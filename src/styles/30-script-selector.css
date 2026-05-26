@@ -5,12 +5,12 @@
 
 .home-toolbar {
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .home-title {
   margin-bottom: 0;
-  font-size: 1.65rem;
+  font-size: 1.38rem;
   line-height: 1.1;
 }
 

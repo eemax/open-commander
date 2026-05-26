@@ -1,17 +1,16 @@
 @media (max-width: 900px) {
   .workspace {
     width: min(720px, calc(100% - 30px));
-    margin-top: 24px;
+    margin-top: 10px;
   }
 
   .script-title-line {
-    gap: 8px;
-    font-size: 1.45rem;
+    font-size: 1.24rem;
     line-height: 1.08;
   }
 
   .script-title-line span:last-child {
-    font-size: 1.02rem;
+    font-size: 0.94rem;
   }
 
   .tool-grid {
@@ -58,7 +57,7 @@
   .workspace-heading {
     align-items: stretch;
     flex-direction: column;
-    gap: 12px;
+    gap: 9px;
   }
 
   .title-row {
@@ -74,11 +73,11 @@
   }
 
   .script-title-line {
-    font-size: 1.32rem;
+    font-size: 1.14rem;
   }
 
   .script-title-line span:last-child {
-    font-size: 0.95rem;
+    font-size: 0.88rem;
   }
 
   .script-card {
@@ -146,7 +145,7 @@
   }
 
   h1 {
-    font-size: 1.6rem;
+    font-size: 1.28rem;
   }
 
   .stat-grid {
@@ -264,11 +263,11 @@
   }
 
   .script-title-line {
-    font-size: 1.22rem;
+    font-size: 1.08rem;
   }
 
   .script-title-line span:last-child {
-    font-size: 0.9rem;
+    font-size: 0.84rem;
   }
 
   .secondary-button {

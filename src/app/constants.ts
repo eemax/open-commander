@@ -1,0 +1,2 @@
+export const MAX_FATAL_ISSUES_SHOWN = 50;
+export const MAX_SUCCESS_ISSUES_SHOWN = 8;
