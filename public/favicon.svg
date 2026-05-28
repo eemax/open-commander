@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <style>
-    .bg { fill: #202124; }
+    .bg { fill: #24262a; }
     .border { stroke: transparent; }
-    .chevron { stroke: #56b6c2; }
-    .cursor { fill: #ff6b7a; }
+    .chevron { stroke: #5fabc2; }
+    .cursor { fill: #e2b540; }
 
     @media (prefers-color-scheme: light) {
       .bg { fill: #ffffff; }
-      .border { stroke: #d9ded8; }
-      .chevron { stroke: #1f8c96; }
-      .cursor { fill: #e85d6c; }
+      .border { stroke: #d7dee4; }
+      .chevron { stroke: #064f6e; }
+      .cursor { fill: #e2b540; }
     }
   </style>
   <rect class="bg border" x="1" y="1" width="62" height="62" rx="14" stroke-width="2" />

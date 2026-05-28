@@ -250,8 +250,8 @@ public/templates/*.xlsx
 
 Open Commander supports auto, light, and dark themes. Auto follows the OS/browser color scheme. The design uses semantic colors:
 
-- teal for runnable system affordances
-- coral for the run moment
+- blue for runnable system affordances
+- yellow ocher for the run moment
 - green for success
 - amber for warnings
 - red for fatal errors

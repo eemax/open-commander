@@ -31,11 +31,11 @@ Dark mode:
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--bg` | `#181818` | Page background and dark browser theme color. |
-| `--surface` | `#202124` | Topbar shade, panels, controls, menus. |
-| `--surface-muted` | `#282c34` | Empty states, dropzones, subtle contrast. |
-| `--border` | `#3a3f4b` | Default dividers and control borders. |
-| `--border-strong` | `#4a5160` | Emphasized borders. |
+| `--bg` | `#1c1d20` | Page background and dark browser theme color. |
+| `--surface` | `#24262a` | Topbar shade, panels, controls, menus. |
+| `--surface-muted` | `#2b2f36` | Empty states, dropzones, subtle contrast. |
+| `--border` | `#3d444f` | Default dividers and control borders. |
+| `--border-strong` | `#4c5562` | Emphasized borders. |
 | `--text` | `#e6e6e6` | Primary text. |
 | `--text-muted` | `#a8adb7` | Labels and secondary text. |
 | `--text-soft` | `#7f8794` | Metadata and low-emphasis UI. |
@@ -44,28 +44,28 @@ Light mode:
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--bg` | `#f8f9f4` | Page background and light browser theme color. |
+| `--bg` | `#f5f7f9` | Page background and light browser theme color. |
 | `--surface` | `#ffffff` | Panels, controls, menus. |
-| `--surface-muted` | `#f1f4f1` | Empty states, dropzones, subtle contrast. |
-| `--border` | `#d9ded8` | Default dividers and control borders. |
-| `--border-strong` | `#c2cbc2` | Emphasized borders. |
-| `--text` | `#1d2420` | Primary text. |
-| `--text-muted` | `#657069` | Labels and secondary text. |
-| `--text-soft` | `#879188` | Metadata and low-emphasis UI. |
+| `--surface-muted` | `#eef2f5` | Empty states, dropzones, subtle contrast. |
+| `--border` | `#d7dee4` | Default dividers and control borders. |
+| `--border-strong` | `#c1ccd4` | Emphasized borders. |
+| `--text` | `#1e252b` | Primary text. |
+| `--text-muted` | `#606b75` | Labels and secondary text. |
+| `--text-soft` | `#84909a` | Metadata and low-emphasis UI. |
 
-Light mode should stay slightly warm but never beige-heavy.
+Light mode should feel like a soft cool workspace gray, not cream, beige, or aged paper.
 
 ## Semantic Colors
 
 | Meaning | Token | Dark | Light | Use |
 | --- | --- | --- | --- | --- |
-| Runnable system | `--accent` | `#56b6c2` | `#1f8c96` | Scripts, processors, upload affordances, local processing, selected files, active role slots. |
-| Run moment | `--run` | `#ff6b7a` | `#e85d6c` | Run button, active execution, cursor/progress pulse. |
+| Runnable system | `--accent` | `#5fabc2` | `#064f6e` | Scripts, processors, upload affordances, local processing, selected files, active role slots. |
+| Run moment | `--run` | `#e2b540` | `#e2b540` | Run button, active execution, cursor/progress pulse. |
 | Success | `--success` | `#98c379` | `#4f8f3a` | Ready/completed states, successful output, valid/matched indicators, download after success. |
-| Warning | `--warning` | `#e5c07b` | `#9a6400` | Non-blocking issues and cautionary guidance. |
+| Warning | `--warning` | `#c4863a` | `#8a5200` | Non-blocking issues and cautionary guidance. |
 | Error | `--danger` | `#f44747` | `#c92f32` | Fatal validation/runtime failures only. |
 
-Coral is not an error color. Red is reserved for fatal failures so the Run action never looks dangerous.
+Yellow ocher is the run/action color, not a warning or error color. Red is reserved for fatal failures so the Run action never looks dangerous.
 
 ## Supporting Tokens
 
@@ -89,13 +89,13 @@ Important supporting tokens:
 - `--file-accent-bg`
 - `--file-accent-border`
 
-Uploaded file rows and selected role slots intentionally use teal treatment because they are active inputs to the runnable process.
+Uploaded file rows and selected role slots intentionally use the blue process treatment because they are active inputs to the runnable system.
 
 ## Component Rules
 
 - Keep most structure neutral: surfaces, text, metadata, secondary buttons, menus, and normal labels should use white/gray tokens.
-- Use teal sparingly for the runnable system: script icons, upload affordances, file rows, selected role slots, detected table accents, local processing, and theme selected states.
-- Use coral only for run intent or active processing.
+- Use Vandar Poel's Blue and its dark-mode lift sparingly for the runnable system: script icons, upload affordances, file rows, selected role slots, detected table accents, local processing, and theme selected states.
+- Use yellow ocher only for run intent or active processing.
 - Use green only after success or validation-positive states.
 - Use amber for warnings and non-blocking guidance.
 - Use red only for fatal validation or runtime failure.

@@ -219,14 +219,14 @@ The app supports `auto`, `light`, and `dark` modes. The choice is stored as `ope
 
 Preserve the semantic color split:
 
-- Cyan means runnable system: scripts, processors, upload/process affordances, local execution context, selected workbooks, and active role slots.
-- Coral means the run moment: Run button, active execution, cursor/progress pulse.
+- Blue means runnable system: scripts, processors, upload/process affordances, local execution context, selected workbooks, and active role slots.
+- Yellow ocher means the run moment: Run button, active execution, cursor/progress pulse.
 - Green means success: ready/completed states, successful output, valid/matched indicators, download after success.
 - Amber means warning: non-blocking issues and cautionary guidance.
 - Red means fatal error: validation/runtime failures only.
 - White/gray carries normal UI text, labels, navigation, metadata, and secondary controls.
 
-Do not reuse coral as the generic error color.
+Do not reuse yellow ocher as the generic warning or error color.
 
 ## Before Finishing Changes
 

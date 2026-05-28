@@ -343,6 +343,7 @@ select:disabled {
   width: 100%;
   margin-top: 16px;
   background: var(--run);
+  color: #101828;
 }
 
 .run-button:hover:not(:disabled) {
