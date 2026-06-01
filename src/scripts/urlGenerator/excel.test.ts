@@ -214,7 +214,7 @@ describe("URL generator workbook runner", () => {
 
     await expect(runPromise).rejects.toBeInstanceOf(FatalInputIssueError);
     await expect(runPromise).rejects.toThrow(
-      'Mandatory field "Purchase order" is empty.',
+      'Add a purchase order value.',
     );
     await expect(runPromise).rejects.toMatchObject({
       issues: expect.arrayContaining([
@@ -222,7 +222,7 @@ describe("URL generator workbook runner", () => {
           severity: "error",
           rowNumber: 2,
           field: "purchase_order",
-          message: 'Mandatory field "Purchase order" is empty.',
+          message: 'Add a purchase order value.',
         }),
       ]),
     });
@@ -261,29 +261,28 @@ describe("URL generator workbook runner", () => {
         expect.objectContaining({
           rowNumber: 2,
           field: "purchase_order",
-          message: 'Mandatory field "Purchase order" is empty.',
+          message: 'Add a purchase order value.',
         }),
         expect.objectContaining({
           rowNumber: 4,
           field: "purchase_order",
-          message: expect.stringContaining(
-            'Duplicate purchase order/product combination "po 100" + "abc 1"',
-          ),
+          message:
+            "Duplicate of row 3. Make this purchase order/product pair unique.",
         }),
         expect.objectContaining({
           rowNumber: 3,
           field: "base_url",
-          message: "Base URL cannot use the template placeholder id.example.com.",
+          message: "Replace the template placeholder id.example.com.",
         }),
         expect.objectContaining({
           rowNumber: 2,
           field: "mode",
-          message: 'Mode must be "ean", "upc", or "upc only".',
+          message: 'Use "ean", "upc", or "upc only".',
         }),
         expect.objectContaining({
           rowNumber: 4,
           field: "upc",
-          message: 'Duplicate UPC "222222222222" also appears on row 3.',
+          message: 'Duplicate of row 3. Make this UPC unique.',
         }),
       ]),
     });
@@ -314,7 +313,7 @@ describe("URL generator workbook runner", () => {
         },
       ]),
     ).rejects.toThrow(
-      'Duplicate purchase order/product combination "po 100" + "abc 1"',
+      "Duplicate of row 2. Make this purchase order/product pair unique.",
     );
   });
 
@@ -380,7 +379,7 @@ describe("URL generator workbook runner", () => {
         },
       ]),
     ).rejects.toThrow(
-      "Base URL must be an https root domain with only an optional trailing slash.",
+      "Use only the root domain, like https://id.yourdomain.com.",
     );
   });
 
@@ -407,7 +406,7 @@ describe("URL generator workbook runner", () => {
           buffer: eansBuffer,
         },
       ]),
-    ).rejects.toThrow("Base URL must not include www.");
+    ).rejects.toThrow("Remove www. from the domain.");
   });
 });
 

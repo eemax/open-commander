@@ -117,7 +117,7 @@ describe("URL generator transform", () => {
         expect.objectContaining({
           severity: "error",
           field: "product",
-          message: 'Could not find required column "Product".',
+          message: 'Add a "Product" column.',
         }),
       ]),
     );
@@ -139,22 +139,22 @@ describe("URL generator transform", () => {
       expect.arrayContaining([
         expect.objectContaining({
           severity: "error",
-          message: "No recognizable header row was detected.",
+          message: "Add a header row with the required columns.",
         }),
         expect.objectContaining({
           severity: "error",
           field: "purchase_order",
-          message: 'Could not find required column "Purchase order".',
+          message: 'Add a "Purchase order" column.',
         }),
         expect.objectContaining({
           severity: "error",
           field: "product",
-          message: 'Could not find required column "Product".',
+          message: 'Add a "Product" column.',
         }),
         expect.objectContaining({
           severity: "error",
           field: "base_url",
-          message: 'Could not find required column "Base URL".',
+          message: 'Add a "Base URL" column.',
         }),
       ]),
     );
@@ -176,11 +176,11 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 2,
           field: "product",
-          message: 'Mandatory field "Product" is empty.',
+          message: 'Add a product value.',
         }),
         expect.objectContaining({
           severity: "error",
-          message: "No usable data rows were found.",
+          message: "Add at least one complete data row.",
         }),
       ]),
     );
@@ -241,19 +241,19 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 3,
           field: "ean",
-          message: 'Duplicate EAN "1111111111111" also appears on row 2.',
+          message: 'Duplicate of row 2. Make this EAN unique.',
         }),
         expect.objectContaining({
           severity: "error",
           rowNumber: 4,
           field: "upc",
-          message: 'Duplicate UPC "999999999999" also appears on row 2.',
+          message: 'Duplicate of row 2. Make this UPC unique.',
         }),
         expect.objectContaining({
           severity: "error",
           rowNumber: 5,
           field: "sku",
-          message: 'Duplicate SKU "sku-1" also appears on row 2.',
+          message: 'Duplicate of row 2. Make this SKU unique.',
         }),
       ]),
     );
@@ -274,7 +274,7 @@ describe("URL generator transform", () => {
       expect.arrayContaining([
         expect.objectContaining({
           severity: "error",
-          message: "No recognizable header row was detected.",
+          message: "Add a header row with the required columns.",
         }),
       ]),
     );
@@ -309,7 +309,7 @@ describe("URL generator transform", () => {
           severity: "warning",
           rowNumber: 4,
           field: "mode",
-          message: "UPC-only mode ignores the EAN value.",
+          message: 'EAN will be ignored because mode is "upc only".',
         }),
       ]),
     );
@@ -331,7 +331,7 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 2,
           field: "mode",
-          message: 'Mode "upc only" is required for UPC-only URLs.',
+          message: 'Set mode to "upc only" when only UPC is present.',
         }),
       ]),
     );
@@ -388,19 +388,19 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 2,
           field: "mode",
-          message: "UPC mode requires both EAN and UPC values.",
+          message: "UPC mode needs both EAN and UPC values.",
         }),
         expect.objectContaining({
           severity: "error",
           rowNumber: 3,
           field: "mode",
-          message: "UPC mode requires both EAN and UPC values.",
+          message: "UPC mode needs both EAN and UPC values.",
         }),
         expect.objectContaining({
           severity: "error",
           rowNumber: 4,
           field: "mode",
-          message: 'Mode must be "ean", "upc", or "upc only".',
+          message: 'Use "ean", "upc", or "upc only".',
         }),
       ]),
     );
@@ -425,7 +425,7 @@ describe("URL generator transform", () => {
           rowNumber: 4,
           field: "purchase_order",
           message:
-            'Duplicate purchase order/product combination "1001" + "p 1" also appears on row 2.',
+            'Duplicate of row 2. Make this purchase order/product pair unique.',
         }),
       ]),
     );
@@ -450,7 +450,7 @@ describe("URL generator transform", () => {
         expect.objectContaining({
           severity: "error",
           field: "base_url",
-          message: 'Could not find required column "Base URL".',
+          message: 'Add a "Base URL" column.',
         }),
       ]),
     );
@@ -503,20 +503,20 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 4,
           field: "base_url",
-          message: "Base URL must start with https://.",
+          message: "Start with https://.",
         }),
         expect.objectContaining({
           severity: "error",
           rowNumber: 5,
           field: "base_url",
-          message: "Base URL must use a domain like id.example.com.",
+          message: "Use a domain like https://id.yourdomain.com.",
         }),
         expect.objectContaining({
           severity: "error",
           rowNumber: 6,
           field: "base_url",
           message:
-            "Base URL must be an https root domain with only an optional trailing slash.",
+            "Use only the root domain, like https://id.yourdomain.com.",
         }),
       ]),
     );
@@ -550,7 +550,7 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 2,
           field: "base_url",
-          message: "Base URL cannot use the template placeholder id.example.com.",
+          message: "Replace the template placeholder id.example.com.",
         }),
       ]),
     );
@@ -576,7 +576,7 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 2,
           field: "base_url",
-          message: "Base URL must not include www.",
+          message: "Remove www. from the domain.",
         }),
       ]),
     );
@@ -602,7 +602,7 @@ describe("URL generator transform", () => {
           severity: "error",
           rowNumber: 2,
           field: "base_url",
-          message: "Base URL must use a domain like id.example.com.",
+          message: "Use a domain like https://id.yourdomain.com.",
         }),
       ]),
     );

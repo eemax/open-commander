@@ -25,7 +25,7 @@ export function RunFailureView({
         </div>
       </div>
       <div className="failure-guidance">
-        <strong>Next steps</strong>
+        <strong>{shownIssues.length > 0 ? "What to fix" : "Try this"}</strong>
         <ul className="failure-list">
           {failure.nextSteps.map((step) => (
             <li key={step}>{step}</li>
@@ -55,23 +55,23 @@ export function RunFailureView({
           <div className="issues-heading">
             <AlertTriangle aria-hidden="true" size={18} />
             <h3>
-              Input errors <span>{failure.issues.length.toLocaleString()}</span>
+              Rows to fix <span>{failure.issues.length.toLocaleString()}</span>
             </h3>
           </div>
           <IssueTable issues={shownIssues} />
           {failure.issues.length > shownIssues.length ? (
             <p className="issue-footnote">
               Showing the first {shownIssues.length} of{" "}
-              {failure.issues.length} input errors. Fix these and
-              run again to continue validation.
+              {failure.issues.length} rows to fix. Run again after these are
+              corrected.
             </p>
           ) : null}
         </div>
       ) : failure.details ? (
-        <div className="failure-details">
-          <strong>Error details</strong>
+        <details className="failure-details">
+          <summary>Technical details</summary>
           <p>{failure.details}</p>
-        </div>
+        </details>
       ) : null}
     </div>
   );

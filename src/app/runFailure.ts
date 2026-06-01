@@ -14,10 +14,11 @@ export function describeRunFailure(
       const errorCount = issues.length;
 
       return {
-        title: "Input data needs changes",
-        summary: `The workbook data needs to be fixed before Open Commander can create an output. ${errorCount.toLocaleString()} input ${
-          errorCount === 1 ? "error was" : "errors were"
-        } found.`,
+        title: "Fix input errors",
+        summary: `No output was created. Fix ${formatCount(
+          errorCount,
+          "input error",
+        )}, then run again.`,
         nextSteps: buildInputFailureSteps(issues),
         issues,
       };
@@ -26,9 +27,9 @@ export function describeRunFailure(
 
   if (options.compatibilityTried) {
     return {
-      title: "Compatibility mode could not complete",
+      title: "Processing still failed",
       summary:
-        "The browser still could not finish this workbook run. The files may still be valid.",
+        "The browser could not finish the run. Your files may still be valid.",
       nextSteps: [
         "Try the same files in Google Chrome.",
         "If Chrome also fails, send the workbook pair for review.",
@@ -40,11 +41,11 @@ export function describeRunFailure(
 
   if (error instanceof WorkerUnexpectedError) {
     return {
-      title: "The browser stopped the workbook processor",
+      title: "Browser processing stopped",
       summary:
-        "Open Commander retried the background workbook processor once, but the browser stopped it before completion.",
+        "The browser could not finish processing. Your files may still be valid.",
       nextSteps: [
-        "Try compatibility mode. It may make this tab feel busy briefly while it runs.",
+        "Try compatibility mode.",
         "If compatibility mode also fails, try the same files in Google Chrome.",
       ],
       issues: [],
@@ -55,11 +56,11 @@ export function describeRunFailure(
 
   if (error instanceof WorkerRunError && error.kind === "runtime") {
     return {
-      title: "Workbook processor could not complete",
+      title: "Processing stopped",
       summary:
-        "Open Commander retried the background workbook processor once, but the browser still could not finish the run.",
+        "The browser could not finish processing. Your files may still be valid.",
       nextSteps: [
-        "Try compatibility mode. It may make this tab feel busy briefly while it runs.",
+        "Try compatibility mode.",
         "If compatibility mode also fails, try the same files in Google Chrome.",
       ],
       issues: [],
@@ -73,10 +74,11 @@ export function describeRunFailure(
 
   return {
     title: "Run could not complete",
-    summary: "The browser could not create an output workbook from these files.",
+    summary: "No output was created.",
     nextSteps: [
-      "Check that both selected files are valid .xlsx workbooks and are not password-protected.",
-      "Upload the corrected files and run the script again.",
+      "Check that both files are valid .xlsx workbooks.",
+      "Make sure neither workbook is password-protected.",
+      "Upload the corrected files and run again.",
     ],
     issues: [],
     details: message,
@@ -116,9 +118,10 @@ function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
   );
   const hasMissingRequiredIssue = messages.some(
     (message) =>
-      message.includes("mandatory field") ||
+      message.includes("add a") ||
+      message.includes("add an") ||
       message.includes("required column") ||
-      message.includes("no usable data rows"),
+      message.includes("complete data row"),
   );
   const hasIdentifierModeIssue =
     fields.has("mode") ||
@@ -130,47 +133,45 @@ function buildInputFailureSteps(issues: ProcessingIssue[]): string[] {
     );
   const hasIdentifierFormatIssue = messages.some(
     (message) =>
-      message.includes("ean contains") ||
-      message.includes("upc contains") ||
+      message.includes("digits only") ||
       message.includes("ean length") ||
       message.includes("upc length"),
   );
-  const steps = [
-    "Edit the listed rows in the source workbook, save the file, then upload the corrected workbook.",
-    "The rows below are the errors Open Commander can validate in this pass. After these are fixed, a later run may find more.",
-  ];
+  const steps: string[] = [];
 
   if (hasMissingRequiredIssue) {
-    steps.push(
-      "Orders need purchase_order, product, and base_url. EAN/UPC rows need product plus the required identifier columns for their mode.",
-    );
+    steps.push("Add the missing required columns or values.");
   }
 
   if (hasBaseUrlIssue) {
     steps.push(
-      "Base URL values must be https root domains like https://id.example.com; replace template placeholders before generating and remove paths such as /product, query strings, and http:// values.",
+      "Fix Base URLs: use an https root domain, usually https://id.yourdomain.com.",
     );
   }
 
   if (hasDuplicateIssue) {
-    steps.push(
-      "Make duplicate purchase order/product combinations, EANs, UPCs, and SKUs unique.",
-    );
+    steps.push("Remove duplicate order/product, EAN, UPC, or SKU values.");
   }
 
   if (hasIdentifierModeIssue) {
-    steps.push(
-      'For UPC-only URLs, set mode to "upc only". For UPC mode, include both EAN and UPC values.',
-    );
+    steps.push('Fix mode values: use "ean", "upc", or "upc only".');
   }
 
   if (hasIdentifierFormatIssue) {
     steps.push(
-      "EAN and UPC values must contain digits only. Format source columns as text when leading zeroes matter.",
+      "Check EAN/UPC values. Use text formatting when leading zeroes matter.",
     );
   }
 
-  steps.push("Run the script again after the source data is corrected.");
+  if (steps.length === 0) {
+    steps.push("Fix the rows listed below.");
+  }
+
+  steps.push("Save the workbook, upload it again, and rerun.");
 
   return steps;
+}
+
+function formatCount(count: number, singular: string): string {
+  return `${count.toLocaleString()} ${singular}${count === 1 ? "" : "s"}`;
 }

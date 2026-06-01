@@ -91,7 +91,7 @@ export function detectTableLayout<TKey extends string>(
       issues.push({
         severity: "error",
         field: spec.key,
-        message: `Could not find required column "${spec.label}".`,
+        message: `Add a "${spec.label}" column.`,
       });
     }
   }
@@ -178,7 +178,7 @@ function missingHeaderLayout<TKey extends string>(
   const issues: ProcessingIssue[] = [
     {
       severity: "error",
-      message: "No recognizable header row was detected.",
+      message: "Add a header row with the required columns.",
     },
   ];
 
@@ -187,7 +187,7 @@ function missingHeaderLayout<TKey extends string>(
       issues.push({
         severity: "error",
         field: spec.key,
-        message: `Could not find required column "${spec.label}".`,
+        message: `Add a "${spec.label}" column.`,
       });
     }
   }

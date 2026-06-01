@@ -239,7 +239,7 @@ export function buildUrls(
         fileRole: "orders",
         rowNumber: order.sourceRowNumber,
         field: "purchase_order",
-        message: `Duplicate purchase order/product combination "${order.purchase_order}" + "${order.product}" is not allowed.`,
+        message: "Make this purchase order/product pair unique.",
       });
       continue;
     }
@@ -262,7 +262,7 @@ export function buildUrls(
         fileRole: "eans",
         rowNumber: eanRecord.sourceRowNumber,
         field: "ean",
-        message: `Duplicate EAN "${eanRecord.ean}" is not allowed.`,
+        message: "Make this EAN unique.",
       });
     }
 
@@ -273,7 +273,7 @@ export function buildUrls(
         fileRole: "eans",
         rowNumber: eanRecord.sourceRowNumber,
         field: "upc",
-        message: `Duplicate UPC "${eanRecord.upc}" is not allowed.`,
+        message: "Make this UPC unique.",
       });
     }
 
@@ -284,7 +284,7 @@ export function buildUrls(
         fileRole: "eans",
         rowNumber: eanRecord.sourceRowNumber,
         field: "sku",
-        message: `Duplicate SKU "${eanRecord.sku}" is not allowed.`,
+        message: "Make this SKU unique.",
       });
     }
 
@@ -381,8 +381,8 @@ export function buildUrls(
       severity: "warning",
       message:
         matchedOrderCount > 0
-          ? "No URLs were created because matching orders had invalid Base URLs."
-          : "No URLs were created because no order products matched EAN/UPC products.",
+          ? "No URLs created: matching orders have invalid Base URLs."
+          : "No URLs created: order products did not match EAN/UPC products.",
     });
   }
 
@@ -441,7 +441,7 @@ function extractRecords<TKey extends string>(
               severity: "error",
               rowNumber: rowIndex + 1,
               field: spec.key,
-              message: `Mandatory field "${spec.label}" is empty.`,
+              message: `Add a ${formatFieldLabel(spec.label)} value.`,
             },
             context,
           ),
@@ -459,7 +459,7 @@ function extractRecords<TKey extends string>(
       withContext(
         {
           severity: "error",
-          message: "No usable data rows were found.",
+          message: "Add at least one complete data row.",
         },
         context,
       ),
@@ -491,6 +491,10 @@ function withContext(
     fileName: issue.fileName ?? context.fileName,
     sheetName: issue.sheetName ?? context.sheetName,
   };
+}
+
+function formatFieldLabel(label: string): string {
+  return `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
 }
 
 function normalizeIdentifierKey(value: string | undefined): string {
@@ -526,7 +530,7 @@ function resolveIdentifierRecord(
             severity: "error",
             rowNumber: sourceRowNumber,
             field: "mode",
-            message: 'Mode must be "ean", "upc", or "upc only".',
+            message: 'Use "ean", "upc", or "upc only".',
           },
           context,
         ),
@@ -619,7 +623,7 @@ function resolveMode(input: {
             severity: "error",
             rowNumber: input.sourceRowNumber,
             field: "ean",
-            message: "Either EAN or UPC is required.",
+            message: "Add an EAN or UPC value.",
           },
           input.context,
         ),
@@ -640,7 +644,7 @@ function resolveMode(input: {
             severity: "error",
             rowNumber: input.sourceRowNumber,
             field: "mode",
-            message: 'Mode "upc only" is required for UPC-only URLs.',
+            message: 'Set mode to "upc only" when only UPC is present.',
           },
           input.context,
         ),
@@ -661,7 +665,7 @@ function resolveMode(input: {
             severity: "error",
             rowNumber: input.sourceRowNumber,
             field: "ean",
-            message: "EAN mode requires an EAN value.",
+            message: 'Add an EAN value for "ean" mode.',
           },
           input.context,
         ),
@@ -682,7 +686,7 @@ function resolveMode(input: {
             severity: "error",
             rowNumber: input.sourceRowNumber,
             field: "mode",
-            message: "UPC mode requires both EAN and UPC values.",
+            message: "UPC mode needs both EAN and UPC values.",
           },
           input.context,
         ),
@@ -699,7 +703,7 @@ function resolveMode(input: {
             severity: "error",
             rowNumber: input.sourceRowNumber,
             field: "upc",
-            message: "UPC-only mode requires a UPC value.",
+            message: 'Add a UPC value for "upc only" mode.',
           },
           input.context,
         ),
@@ -714,7 +718,7 @@ function resolveMode(input: {
           severity: "warning",
           rowNumber: input.sourceRowNumber,
           field: "mode",
-          message: "UPC-only mode ignores the EAN value.",
+          message: 'EAN will be ignored because mode is "upc only".',
         },
         input.context,
       ),
@@ -744,7 +748,7 @@ function validateIdentifier(
           severity: "warning",
           rowNumber: sourceRowNumber,
           field,
-          message: `${field.toUpperCase()} contains non-numeric characters.`,
+          message: `Review this ${field.toUpperCase()}. It contains non-digits.`,
         },
         context,
       ),
@@ -762,7 +766,7 @@ function validateIdentifier(
           rowNumber: sourceRowNumber,
           field,
           message:
-            `${field.toUpperCase()} length is unusual. If leading zeroes are missing, format the source column as text or with a zero-padding number format.`,
+            `Check this ${field.toUpperCase()} length. If leading zeroes are missing, format the column as text.`,
         },
         context,
       ),
@@ -790,11 +794,7 @@ function validateDuplicateOrders(
             severity: "error",
             rowNumber: record.sourceRowNumber,
             field: "purchase_order",
-            message: `Duplicate purchase order/product combination "${
-              record.purchase_order
-            }" + "${record.product}" also appears on row ${
-              firstRecord.sourceRowNumber
-            }.`,
+            message: `Duplicate of row ${firstRecord.sourceRowNumber}. Make this purchase order/product pair unique.`,
           },
           context,
         ),
@@ -845,7 +845,7 @@ function validateDuplicateEans(
               severity: "error",
               rowNumber: record.sourceRowNumber,
               field: "ean",
-              message: `Duplicate EAN "${record.ean}" also appears on row ${firstEanRecord.sourceRowNumber}.`,
+              message: `Duplicate of row ${firstEanRecord.sourceRowNumber}. Make this EAN unique.`,
             },
             context,
           ),
@@ -867,7 +867,7 @@ function validateDuplicateEans(
               severity: "error",
               rowNumber: record.sourceRowNumber,
               field: "upc",
-              message: `Duplicate UPC "${record.upc}" also appears on row ${firstUpcRecord.sourceRowNumber}.`,
+              message: `Duplicate of row ${firstUpcRecord.sourceRowNumber}. Make this UPC unique.`,
             },
             context,
           ),
@@ -892,7 +892,7 @@ function validateDuplicateEans(
             severity: "error",
             rowNumber: record.sourceRowNumber,
             field: "sku",
-            message: `Duplicate SKU "${record.sku}" also appears on row ${firstSkuRecord.sourceRowNumber}.`,
+            message: `Duplicate of row ${firstSkuRecord.sourceRowNumber}. Make this SKU unique.`,
           },
           context,
         ),

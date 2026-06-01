@@ -243,6 +243,10 @@
     grid-template-columns: 1fr;
     gap: 4px;
   }
+
+  .issue-row-head {
+    display: none;
+  }
 }
 
 @media (max-width: 480px) {

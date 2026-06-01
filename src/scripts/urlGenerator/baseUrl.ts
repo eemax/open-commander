@@ -21,7 +21,7 @@ export function parseBaseUrl(order: OrderRecord):
           fileRole: "orders",
           rowNumber: order.sourceRowNumber,
           field: "base_url",
-          message: "Base URL must start with https://.",
+          message: "Start with https://.",
         },
       };
     }
@@ -34,7 +34,7 @@ export function parseBaseUrl(order: OrderRecord):
           fileRole: "orders",
           rowNumber: order.sourceRowNumber,
           field: "base_url",
-          message: "Base URL must not include a username or password.",
+          message: "Remove the username or password.",
         },
       };
     }
@@ -47,7 +47,7 @@ export function parseBaseUrl(order: OrderRecord):
           fileRole: "orders",
           rowNumber: order.sourceRowNumber,
           field: "base_url",
-          message: "Base URL must use a domain like id.example.com.",
+          message: "Use a domain like https://id.yourdomain.com.",
         },
       };
     }
@@ -60,7 +60,7 @@ export function parseBaseUrl(order: OrderRecord):
           fileRole: "orders",
           rowNumber: order.sourceRowNumber,
           field: "base_url",
-          message: "Base URL cannot use the template placeholder id.example.com.",
+          message: "Replace the template placeholder id.example.com.",
         },
       };
     }
@@ -74,7 +74,7 @@ export function parseBaseUrl(order: OrderRecord):
           rowNumber: order.sourceRowNumber,
           field: "base_url",
           message:
-            "Base URL must be an https root domain with only an optional trailing slash.",
+            "Use only the root domain, like https://id.yourdomain.com.",
         },
       };
     }
@@ -87,7 +87,7 @@ export function parseBaseUrl(order: OrderRecord):
           fileRole: "orders",
           rowNumber: order.sourceRowNumber,
           field: "base_url",
-          message: "Base URL must not include www.",
+          message: "Remove www. from the domain.",
         },
       };
     }
@@ -105,7 +105,7 @@ export function parseBaseUrl(order: OrderRecord):
         fileRole: "orders",
         rowNumber: order.sourceRowNumber,
         field: "base_url",
-        message: "Base URL must be a valid URL like https://id.example.com.",
+        message: "Use a valid URL like https://id.yourdomain.com.",
       },
     };
   }

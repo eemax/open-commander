@@ -117,10 +117,14 @@
 }
 
 .failure-guidance strong,
-.failure-details strong {
+.failure-details summary {
   color: var(--text);
   font-size: 0.88rem;
   font-weight: 720;
+}
+
+.failure-details summary {
+  cursor: pointer;
 }
 
 .failure-list {
@@ -336,7 +340,7 @@
 
 .issue-row {
   display: grid;
-  grid-template-columns: 80px minmax(110px, 1fr) 78px minmax(180px, 2fr);
+  grid-template-columns: minmax(120px, 1fr) minmax(90px, 0.75fr) minmax(180px, 2fr);
   gap: 12px;
   align-items: start;
   padding: 11px 12px;
@@ -348,14 +352,30 @@
   border-bottom: 0;
 }
 
-.issue-row strong {
-  color: var(--warning);
-  font-size: 0.84rem;
-  font-weight: 650;
-  text-transform: capitalize;
+.issue-row-head {
+  background: var(--surface-muted);
 }
 
-.issue-row span,
+.issue-row-head span {
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.issue-error {
+  border-left: 3px solid var(--danger);
+}
+
+.issue-warning {
+  border-left: 3px solid var(--warning);
+}
+
+.issue-info {
+  border-left: 3px solid var(--accent);
+}
+
+.issue-row:not(.issue-row-head) span,
 .issue-row p {
   color: var(--text-muted);
   font-size: 0.84rem;

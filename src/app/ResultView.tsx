@@ -68,14 +68,16 @@ export function ResultView({ result }: { result: UrlGeneratorRunResult }) {
         <div className="issues">
           <div className="issues-heading">
             <AlertTriangle aria-hidden="true" size={18} />
-            <h3>Issues</h3>
+            <h3>
+              Warnings to review <span>{result.issues.length.toLocaleString()}</span>
+            </h3>
           </div>
           <IssueTable issues={shownIssues} />
           {result.issues.length > shownIssues.length && (
             <p className="issue-footnote">
-              {result.issues.length - shownIssues.length} more issue
+              {result.issues.length - shownIssues.length} more warning
               {result.issues.length - shownIssues.length === 1 ? "" : "s"} in the
-              workbook.
+              output workbook.
             </p>
           )}
         </div>
@@ -87,9 +89,16 @@ export function ResultView({ result }: { result: UrlGeneratorRunResult }) {
 export function IssueTable({ issues }: { issues: ProcessingIssue[] }) {
   return (
     <div className="issue-table">
+      <div className="issue-row issue-row-head">
+        <span>File</span>
+        <span>Where</span>
+        <span>Fix</span>
+      </div>
       {issues.map((issue, index) => (
-        <div className="issue-row" key={`${issue.message}-${index}`}>
-          <strong>{issue.severity}</strong>
+        <div
+          className={`issue-row issue-${issue.severity}`}
+          key={`${issue.message}-${index}`}
+        >
           <span>{formatIssueSource(issue)}</span>
           <span>{formatIssueLocation(issue)}</span>
           <p>{issue.message}</p>
@@ -177,14 +186,12 @@ function Stat({ label, value }: { label: string; value: number }) {
 function summarizeIssues(issues: UrlGeneratorRunResult["issues"]): string {
   const counts = countIssues(issues);
   const parts = [
-    counts.error > 0 ? `${counts.error} error${counts.error === 1 ? "" : "s"}` : "",
-    counts.warning > 0
-      ? `${counts.warning} warning${counts.warning === 1 ? "" : "s"}`
-      : "",
-    counts.info > 0 ? `${counts.info} note${counts.info === 1 ? "" : "s"}` : "",
+    counts.error > 0 ? formatCount(counts.error, "error") : "",
+    counts.warning > 0 ? formatCount(counts.warning, "warning") : "",
+    counts.info > 0 ? formatCount(counts.info, "note") : "",
   ].filter(Boolean);
 
-  return parts.join(", ");
+  return parts.length > 0 ? `${parts.join(", ")} to review.` : "";
 }
 
 function countIssues(issues: UrlGeneratorRunResult["issues"]) {
@@ -199,19 +206,19 @@ function countIssues(issues: UrlGeneratorRunResult["issues"]) {
 
 function formatSuccessSummary(result: UrlGeneratorRunResult): string {
   const urls = result.stats.urlsCreated.toLocaleString();
-  const orders = result.stats.ordersRead.toLocaleString();
-  const identifiers = result.stats.eansRead.toLocaleString();
   const unmatched = result.stats.unmatchedOrders;
   const unmatchedText =
     unmatched > 0
-      ? ` ${unmatched.toLocaleString()} order${
-          unmatched === 1 ? " has" : "s have"
-        } no matching EAN/UPC product.`
-      : " Every order matched at least one EAN/UPC product.";
+      ? `${formatCount(unmatched, "order")} did not match an EAN/UPC product.`
+      : "All orders matched.";
 
-  return `Created ${urls} URL${result.stats.urlsCreated === 1 ? "" : "s"} from ${orders} order row${
-    result.stats.ordersRead === 1 ? "" : "s"
-  } and ${identifiers} EAN/UPC row${result.stats.eansRead === 1 ? "" : "s"}.${unmatchedText}`;
+  return `Output created with ${urls} URL${
+    result.stats.urlsCreated === 1 ? "" : "s"
+  }. ${unmatchedText}`;
+}
+
+function formatCount(count: number, singular: string): string {
+  return `${count.toLocaleString()} ${singular}${count === 1 ? "" : "s"}`;
 }
 
 function formatIdentifierType(

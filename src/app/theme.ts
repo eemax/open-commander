@@ -48,7 +48,7 @@ function updateBrowserThemeColor(mode: ThemeMode): void {
     return;
   }
 
-  meta.content = resolveThemeMode(mode) === "light" ? "#f8f9f4" : "#181818";
+  meta.content = resolveThemeMode(mode) === "light" ? "#f5f7f9" : "#1c1d20";
 }
 
 function resolveThemeMode(mode: ThemeMode): "light" | "dark" {
