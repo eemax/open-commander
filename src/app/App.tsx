@@ -584,7 +584,11 @@ export function App() {
                     setIsDragging(true);
                   }}
                   onDragOver={(event) => event.preventDefault()}
-                  onDragLeave={() => setIsDragging(false)}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                      setIsDragging(false);
+                    }
+                  }}
                   onDrop={(event) => {
                     event.preventDefault();
                     setIsDragging(false);

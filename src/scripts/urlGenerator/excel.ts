@@ -238,7 +238,7 @@ function simpleZeroPaddingFormat(numberFormat: string): string | null {
   return /^0+$/.test(positiveFormat) ? positiveFormat : null;
 }
 
-function trimEmptyBounds(rows: string[][]): string[][] {
+export function trimEmptyBounds(rows: string[][]): string[][] {
   const normalizedRows = rows.map((row) => row.map(normalizeDataText));
   let lastRowIndex = normalizedRows.length - 1;
 
@@ -250,7 +250,8 @@ function trimEmptyBounds(rows: string[][]): string[][] {
   }
 
   const rowsWithContent = normalizedRows.slice(0, lastRowIndex + 1);
-  let lastColumnIndex = Math.max(0, ...rowsWithContent.map((row) => row.length)) - 1;
+  let lastColumnIndex =
+    rowsWithContent.reduce((max, row) => Math.max(max, row.length), 0) - 1;
 
   while (
     lastColumnIndex >= 0 &&
@@ -338,7 +339,7 @@ function formatModeForOutput(mode: GtinMode): string {
   return mode === "upc_only" ? "upc only" : mode;
 }
 
-function addRowsSheet<T extends Record<string, unknown>>(
+export function addRowsSheet<T extends Record<string, unknown>>(
   workbook: ExcelJS.Workbook,
   sheetName: string,
   headers: string[],
@@ -368,10 +369,16 @@ function addRowsSheet<T extends Record<string, unknown>>(
 
   headers.forEach((header, index) => {
     const column = worksheet.getColumn(index + 1);
-    const longest = Math.max(
-      header.length,
-      ...rows.map((row) => String(row[header] ?? "").length),
-    );
+    let longest = header.length;
+
+    for (const row of rows) {
+      const length = String(row[header] ?? "").length;
+
+      if (length > longest) {
+        longest = length;
+      }
+    }
+
     const maxWidth = ["url", "value", "detail"].includes(header) ? 90 : 32;
     column.width = Math.min(Math.max(longest + 2, 12), maxWidth);
     column.alignment = { vertical: "top", wrapText: true };

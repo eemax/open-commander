@@ -1,7 +1,12 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 
-import { FatalInputIssueError, runUrlGenerator } from "./excel";
+import {
+  addRowsSheet,
+  FatalInputIssueError,
+  runUrlGenerator,
+  trimEmptyBounds,
+} from "./excel";
 
 describe("URL generator workbook runner", () => {
   it("reads two xlsx buffers and writes a downloadable workbook", async () => {
@@ -407,6 +412,30 @@ describe("URL generator workbook runner", () => {
         },
       ]),
     ).rejects.toThrow("Remove www. from the domain.");
+  });
+
+  it("trims bounds of tables with more rows than the spread argument limit", () => {
+    const rows = Array.from({ length: 150_000 }, () => ["a", "b", ""]);
+    rows.push(["", "", ""]);
+
+    const trimmed = trimEmptyBounds(rows);
+
+    expect(trimmed).toHaveLength(150_000);
+    expect(trimmed[0]).toEqual(["a", "b"]);
+    expect(trimmed[trimmed.length - 1]).toEqual(["a", "b"]);
+  });
+
+  it("sizes columns of sheets with more rows than the spread argument limit", () => {
+    const workbook = new ExcelJS.Workbook();
+    const rows = Array.from({ length: 150_000 }, (_, index) => ({
+      url: `https://example.test/01/${index}`,
+    }));
+
+    addRowsSheet(workbook, "urls", ["url"], rows);
+
+    const worksheet = workbook.getWorksheet("urls");
+    expect(worksheet?.rowCount).toBe(150_001);
+    expect(worksheet?.getColumn(1).width).toBeGreaterThan(12);
   });
 });
 

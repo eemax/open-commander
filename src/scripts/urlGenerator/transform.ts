@@ -906,33 +906,37 @@ function validateDuplicateEans(
   return issues;
 }
 
+const textCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base",
+});
+
+const identifierCollator = new Intl.Collator(undefined, { numeric: true });
+
 function sortUrlRows(rows: UrlOutputRow[]): UrlOutputRow[] {
-  return [...rows].sort((a, b) =>
-    [
-      compareText(a.purchase_order, b.purchase_order),
-      compareText(normalizeProductKey(a.product), normalizeProductKey(b.product)),
-      compareText(a.product, b.product),
-      compareText(a.sku, b.sku),
-      compareText(a.identifier_type, b.identifier_type),
-      a.identifier.localeCompare(b.identifier, undefined, { numeric: true }),
-    ].find((result) => result !== 0) ?? 0,
-  );
+  return rows
+    .map((row) => ({ row, productKey: normalizeProductKey(row.product) }))
+    .sort(
+      (a, b) =>
+        textCollator.compare(a.row.purchase_order, b.row.purchase_order) ||
+        textCollator.compare(a.productKey, b.productKey) ||
+        textCollator.compare(a.row.product, b.row.product) ||
+        textCollator.compare(a.row.sku, b.row.sku) ||
+        textCollator.compare(a.row.identifier_type, b.row.identifier_type) ||
+        identifierCollator.compare(a.row.identifier, b.row.identifier),
+    )
+    .map((entry) => entry.row);
 }
 
 function sortUnmatchedRows(rows: UnmatchedOrderRow[]): UnmatchedOrderRow[] {
-  return [...rows].sort((a, b) =>
-    [
-      compareText(a.purchase_order, b.purchase_order),
-      compareText(normalizeProductKey(a.product), normalizeProductKey(b.product)),
-      compareText(a.product, b.product),
-      compareText(a.base_url, b.base_url),
-    ].find((result) => result !== 0) ?? 0,
-  );
-}
-
-function compareText(a: string, b: string): number {
-  return a.localeCompare(b, undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
+  return rows
+    .map((row) => ({ row, productKey: normalizeProductKey(row.product) }))
+    .sort(
+      (a, b) =>
+        textCollator.compare(a.row.purchase_order, b.row.purchase_order) ||
+        textCollator.compare(a.productKey, b.productKey) ||
+        textCollator.compare(a.row.product, b.row.product) ||
+        textCollator.compare(a.row.base_url, b.row.base_url),
+    )
+    .map((entry) => entry.row);
 }
